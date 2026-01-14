@@ -13,8 +13,12 @@ import {
 export default function HomePage() {
   return (
     <div className="bg-white min-h-screen pb-24 font-sans selection:bg-red-100">
-      {/* 1. 브랜드 헤더 */}
+      {/* [Header Section] 
+        - Sticky positioning for accessibility
+        - Contains: Brand Logo, Branch Name, Cart, Location, Search
+      */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
+        {/* Top Row: Brand & Actions */}
         <div className="px-5 py-4 flex justify-between items-end">
           <div className="flex items-baseline gap-1.5">
             <h1 className="text-3xl font-black text-black tracking-tighter leading-none">
@@ -24,6 +28,8 @@ export default function HomePage() {
               목감점
             </span>
           </div>
+
+          {/* Action Icons (Cart) */}
           <div className="flex gap-4 mb-1">
             <div className="relative cursor-pointer group">
               <ShoppingCart
@@ -37,6 +43,7 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Bottom Row: Location Info & Search Input */}
         <div className="px-5 pb-3">
           <div className="flex items-center gap-1 mb-2 text-xs font-medium text-gray-600">
             <MapPin size={12} className="text-red-600" />
@@ -57,7 +64,10 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* 2. 메인 배너 */}
+      {/* [Hero Banner Section]
+        - Main promotional visual
+        - Gradient overlay with call-to-action details
+      */}
       <section className="relative w-full h-72 bg-gray-900 overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-r from-black via-gray-900 to-red-900 flex items-center justify-between p-6 text-white px-8">
           <div className="flex flex-col justify-center h-full z-10">
@@ -76,15 +86,19 @@ export default function HomePage() {
               </span>
             </p>
           </div>
+          {/* Decorative Element */}
           <div className="w-40 h-40 border-4 border-red-600/30 rounded-full absolute -right-10 -bottom-10"></div>
         </div>
+        {/* Slider Indicators */}
         <div className="absolute bottom-4 left-6 flex gap-1.5">
           <div className="w-5 h-1.5 rounded-full bg-red-600"></div>
           <div className="w-1.5 h-1.5 rounded-full bg-gray-600"></div>
         </div>
       </section>
 
-      {/* 3. 전단지 바로가기 */}
+      {/* [Flyer Access Button]
+        - Direct link to digital flyer image
+      */}
       <section className="px-4 mt-4">
         <div className="bg-black text-white rounded-xl p-4 flex items-center justify-between shadow-md cursor-pointer group hover:bg-gray-900 transition-colors">
           <div className="flex items-center gap-3">
@@ -105,7 +119,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 4. 카테고리 */}
+      {/* [Category Grid]
+        - 5 columns grid layout
+        - Dynamic rendering based on category array
+      */}
       <section className="mt-8 px-4">
         <div className="grid grid-cols-5 gap-y-5">
           {[
@@ -151,9 +168,12 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 5. 타임세일 (✨ 컴팩트 사이즈: 120px ✨) */}
-      <section className="mt-8 pl-4 border-t-8 border-gray-50 pt-8">
-        <div className="flex items-center justify-between pr-4 mb-4">
+      {/* [Product Section: Time Sale]
+        - Horizontal scroll layout (Compact View)
+        - Card Width: 120px
+      */}
+      <section className="mt-8 pl-5 border-t-4 border-gray-50 pt-6">
+        <div className="flex items-center justify-between pr-5 mb-6">
           <h3 className="text-xl font-black text-black">
             ⚡ 지금 안사면 손해!
           </h3>
@@ -162,32 +182,32 @@ export default function HomePage() {
           </span>
         </div>
 
-        {/* gap-3으로 간격을 좁히고, 아이템 사이즈를 줄임 */}
         <div className="flex gap-3 overflow-x-auto pb-3 pr-4 no-scrollbar">
           {[1, 2, 3, 4, 5, 6].map((item) => (
             <div
               key={item}
               className="min-w-[120px] w-[120px] flex flex-col group cursor-pointer"
             >
-              {/* 이미지 (120x120) */}
+              {/* Product Image Area */}
               <div className="aspect-square bg-gray-50 rounded-xl relative mb-2 overflow-hidden border border-gray-100 group-hover:border-red-600 transition-colors">
                 <div className="w-full h-full flex items-center justify-center text-gray-300 bg-gray-50 text-xs">
                   IMG
                 </div>
 
+                {/* Conditional Rendering: Low Stock Badge */}
                 {item <= 2 && (
                   <span className="absolute top-0 left-0 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-br-lg z-10">
                     품절임박
                   </span>
                 )}
 
-                {/* 장바구니 버튼 사이즈도 살짝 조절 */}
+                {/* Quick Add Button */}
                 <button className="absolute bottom-1.5 right-1.5 w-7 h-7 bg-white/90 rounded-full flex items-center justify-center shadow-md text-black hover:bg-red-600 hover:text-white transition-all">
                   <Plus size={14} strokeWidth={3} />
                 </button>
               </div>
 
-              {/* 상품 정보 (폰트 사이즈 축소) */}
+              {/* Product Details */}
               <div>
                 <p className="text-[10px] text-gray-400 mb-0.5">국내산/성주</p>
                 <h4 className="text-[13px] font-bold text-gray-900 leading-tight line-clamp-2 mb-1 h-9">
@@ -210,9 +230,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 6. MD 추천 상품 (✨ 컴팩트 사이즈: 120px ✨) */}
-      <section className="mt-2 pl-4 border-t-8 border-gray-50 pt-8">
-        <div className="flex items-center justify-between pr-4 mb-4">
+      {/* [Product Section: MD Recommendation]
+        - Horizontal scroll layout
+      */}
+      <section className="mt-8 pl-5 border-t-4 border-gray-50 pt-6">
+        <div className="flex items-center justify-between pr-5 mb-6">
           <h3 className="text-xl font-black text-black">🥩 정육코너 BEST</h3>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-6 pr-4 no-scrollbar">
@@ -247,7 +269,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 하단 탭바 */}
+      {/* [Bottom Navigation Bar]
+        - Fixed positioning at bottom
+        - Tab switching interface
+      */}
       <nav className="fixed bottom-0 max-w-[430px] w-full bg-white/95 backdrop-blur-md border-t border-gray-100 flex justify-around py-2 pb-5 z-50 text-[10px] font-medium text-gray-400">
         <div className="flex flex-col items-center gap-1 text-red-600 font-bold cursor-pointer">
           <Home size={24} className="stroke-[2.5]" />

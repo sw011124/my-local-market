@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  # 1. PostgreSQL 데이터베이스 서비스 정의
+  db:
+    image: postgres:15-alpine # 가장 가볍고 안정적인 버전 사용
+    container_name: market-db # 내 컴퓨터에서 보일 이름
+    ports:
+      - "5432:5432" # 외부접속포트:내부포트
+    environment:
+      POSTGRES_USER: sw011124
+      POSTGRES_PASSWORD: 0525
+      POSTGRES_DB: market # DB 이름
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data # 데이터가 날아가면 안 되니까 내 폴더랑 연결(저장)
+    restart: always
+# 2. (선택사항) DB를 눈으로 쉽게 관리하는 도구 (pgAdmin)
+# 필요하면 주석을 풀고 사용하세요. 일단은 DB만 띄웁니다.
