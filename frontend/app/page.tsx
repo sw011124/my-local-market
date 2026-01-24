@@ -32,14 +32,14 @@ export default function HomePage() {
                 className="text-black group-hover:text-red-600 transition-colors"
               />
               <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border-2 border-white box-content">
-                2
+                0
               </span>
             </div>
           </div>
         </div>
 
         <div className="px-4 pb-4">
-          <div className="flex items-center gap-1 mb-3 text-xs font-medium text-gray-500">
+          <div className="flex items-center gap-1 mb-2 text-xs font-medium text-gray-500">
             <MapPin size={14} className="text-red-600" />
             <span>배달지: 목감동 신안인스빌 정문...</span>
             <ChevronRight size={14} />

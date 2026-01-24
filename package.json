@@ -1,4 +1,8 @@
 {
+  "dependencies": {
+    "@nestjs/mapped-types": "*",
+    "@prisma/client": "^7.3.0"
+  },
   "name": "my-local-market",
   "version": "1.0.0",
   "description": "Hyper-local commerce service for Jinro Mart Mokgam",
