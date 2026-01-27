@@ -1,29 +1,51 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// 기존 generator, datasource 설정은 유지하세요.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite" // 또는 사용 중인 DB (postgresql, mysql 등)
   url      = env("DATABASE_URL")
 }
 
+// [수정] 상품 모델 확장
 model Product {
-  id            Int      @id @default(autoincrement()) 
-  name          String   
-  description_origin   String?  //null - don't know about origin
+  id    Int     @id @default(autoincrement())
   
-  price         Int      
-  originalPrice Int?     //null - not sale
-  
-  category      String   
-  imageUrl      String?  //null - don't have image
-  
-  badge         String?  //null - don't have this product
-  isSoldOut     Boolean  @default(false) 
-  
-  createdAt     DateTime @default(now()) 
-  updatedAt     DateTime @updatedAt      
+  // 1. 핵심 식별자
+  barcode String  @unique // 바코드는 중복되면 안 됨
+  name    String
+
+  // 2. 가격 및 재고
+  salePrice     Int      // 판매가
+  originalPrice Int?     // 정가 (선택)
+  costPrice     Int?     // 원가 (선택 - 나중에 넣을 수도 있으니)
+  stock         Int      @default(0)
+
+  // 3. 카테고리 (검색 필터용)
+  categoryLarge  String
+  categoryMedium String?
+  categorySmall  String?
+
+  // 4. 상세 스펙
+  unit          String?  // 단위
+  origin        String?  // 원산지
+  manufacturer  String?  // 제조사
+  storageMethod String?  // 보관방법
+  description   String?  // 상세설명
+  imageUrl      String?  // 이미지 URL
+
+  // 5. 태그 및 상태
+  // SQLite는 배열(String[])을 지원하지 않으므로 String으로 저장하거나 별도 테이블 필요.
+  // 여기서는 편의상 쉼표로 구분된 문자열(CSV)로 저장하거나, JSON을 지원하는 DB면 Json 사용.
+  // SQLite 기준 호환성을 위해 String으로 하고 서비스에서 변환합니다.
+  tags     String? // "세일,신선,인기" 형태로 저장
+
+  isBest   Boolean @default(false)
+  isNew    Boolean @default(false)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
