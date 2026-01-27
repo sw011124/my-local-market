@@ -1,18 +1,15 @@
 {
-  "dependencies": {
-    "@nestjs/mapped-types": "*",
-    "@prisma/client": "^7.3.0"
-  },
   "name": "my-local-market",
   "version": "1.0.0",
   "description": "Hyper-local commerce service for Jinro Mart Mokgam",
   "scripts": {
     "dev": "concurrently \"npm run db:up\" \"npm run dev:front\" \"npm run dev:back\"",
-    "dev:front": "npm run dev --prefix frontend",
+    "dev:front": "npm run dev --prefix frontend -- -p 3001",
     "dev:back": "npm run start:dev --prefix backend",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down"
   },
+  "dependencies": {},
   "devDependencies": {
     "concurrently": "^9.0.0"
   }
