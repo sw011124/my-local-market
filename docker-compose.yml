@@ -17,52 +17,35 @@ services:
       retries: 20
     restart: always
 
-  python-backend:
+  backend:
     build:
-      context: ./services/python-backend
-    container_name: market-python-backend
+      context: ./services/backend
+    container_name: market-backend
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/market
-      CORS_ORIGINS: http://localhost:8080,http://localhost:3001,http://localhost:3101
+      CORS_ORIGINS: http://localhost:3001,http://localhost:3101
     ports:
       - "8000:8000"
     restart: always
 
-  next-frontend:
+  frontend:
     build:
-      context: ./frontend
+      context: ./services/frontend
       args:
         NEXT_PUBLIC_MARKET_API_BASE_URL: http://localhost:8000/api/v1
-    container_name: market-next-frontend
+    container_name: market-frontend
     depends_on:
-      python-backend:
+      backend:
         condition: service_started
     environment:
-      MARKET_API_BASE_URL: http://python-backend:8000/api/v1
+      MARKET_API_BASE_URL: http://backend:8000/api/v1
       NEXT_PUBLIC_MARKET_API_BASE_URL: http://localhost:8000/api/v1
     ports:
       - "3101:3000"
     restart: always
-    profiles:
-      - transition-next
-
-  java-frontend:
-    build:
-      context: ./services/java-frontend
-    container_name: market-java-frontend
-    depends_on:
-      python-backend:
-        condition: service_started
-    environment:
-      MARKET_API_BASE_URL: http://python-backend:8000/api/v1
-    ports:
-      - "8080:8080"
-    restart: always
-    profiles:
-      - legacy-java
 
 volumes:
   market-db-data:

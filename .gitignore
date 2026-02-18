@@ -1,16 +1,14 @@
 # --- 의존성 모듈 (올리면 안 됨) ---
 node_modules/
-backend/node_modules/
-frontend/node_modules/
+services/frontend/node_modules/
 
 # --- 환경변수 (비밀번호 포함됨 - 절대 금지) ---
 .env
-backend/.env
+services/backend/.env
 
 # --- 빌드 결과물 ---
 dist/
-backend/dist/
-.next/
+services/frontend/.next/
 
 # --- ⭐️ DB 데이터 폴더 (가장 중요) ---
 # 우리가 만든 폴더들이 깃에 올라가지 않게 막습니다.
