@@ -127,8 +127,8 @@ export default function CreateProductPage() {
   });
 
   const [priceData, setPriceData] = useState({
-    base: "", // 판매가
-    discount: "", // 할인가
+    base: "", // 사장님 용어: 판매가 (기준 가격)
+    discount: "", // 사장님 용어: 할인가 (세일 가격)
   });
 
   const [tags, setTags] = useState<string[]>([]);
@@ -139,7 +139,7 @@ export default function CreateProductPage() {
 
   const handleEnterKey = (
     e: React.KeyboardEvent,
-    nextRef: React.RefObject<HTMLInputElement>,
+    nextRef: React.RefObject<HTMLInputElement | null>,
   ) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -217,31 +217,57 @@ export default function CreateProductPage() {
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // 1. 유효성 검사 (base가 화면상의 '판매가'입니다)
     if (!formData.name || !formData.barcode || !priceData.base) {
       alert("필수 항목(* 표시된 값)을 입력해주세요.");
       return;
     }
 
-    const hasDiscount = priceData.discount && Number(priceData.discount) > 0;
-    const finalSalePrice = hasDiscount
-      ? Number(priceData.discount)
-      : Number(priceData.base);
-    const finalOriginalPrice = hasDiscount ? Number(priceData.base) : null;
-
+    // 2. 데이터 매핑 (Frontend 변수 -> Backend 변수)
+    // base (화면: 판매가) -> originalPrice (DB: 기준가)
+    // discount (화면: 할인가) -> discountPrice (DB: 할인가)
     const payload = {
       ...formData,
-      salePrice: finalSalePrice,
-      originalPrice: finalOriginalPrice,
+      // [핵심] 여기서 이름을 바꿔서 서버로 보냅니다!
+      originalPrice: Number(priceData.base),
+      discountPrice:
+        priceData.discount && Number(priceData.discount) > 0
+          ? Number(priceData.discount)
+          : null, // 할인 없으면 null
+
       tags: tags,
       imageUrl: selectedImage,
+      // 출처 모드에 따라 불필요한 값은 확실하게 비워줍니다
       origin: sourceMode === "origin" ? formData.origin : null,
       manufacturer:
         sourceMode === "manufacturer" ? formData.manufacturer : null,
     };
 
-    console.log("📦 [최종 등록 데이터]:", payload);
-    alert(`'${formData.name}' 상품이 등록되었습니다!`);
+    console.log("📦 [서버로 전송할 데이터]:", payload);
+
+    try {
+      // 3. API 전송
+      const response = await fetch("http://localhost:4000/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "등록 실패");
+      }
+
+      const result = await response.json();
+      console.log("등록 성공:", result);
+      alert(`'${formData.name}' 상품이 성공적으로 등록되었습니다!`);
+
+      // (선택) 성공 후 페이지 이동 등 추가 가능
+    } catch (error) {
+      console.error("에러 발생:", error);
+      alert("상품 등록 중 오류가 발생했습니다. (백엔드 서버 확인 필요)");
+    }
   };
 
   const largeCategories = Object.keys(CATEGORY_TREE);
@@ -375,7 +401,7 @@ export default function CreateProductPage() {
               </div>
             </div>
 
-            {/* 2. 카테고리 */}
+            {/* 2. 카테고리 (Sticky & Improved UI 적용) */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 bg-gray-50/50">
                 <LayoutGrid size={20} className="text-gray-900" />
@@ -483,22 +509,22 @@ export default function CreateProductPage() {
                 </div>
               </div>
 
-              {/* 선택 경로 Footer (수정됨: 심플한 텍스트 방식) */}
+              {/* 선택 경로 Footer (심플한 텍스트 방식) */}
               <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 text-sm text-gray-600 flex items-center gap-2">
                 <span className="font-bold text-gray-500">카테고리:</span>
                 {formData.categoryLarge ? (
-                  <span className="flex items-center gap-1 text-gray-500 font-medium text-sm">
+                  <span className="flex items-center gap-1 text-gray-600 font-medium text-sm">
                     <span>{formData.categoryLarge}</span>
                     {formData.categoryMedium && (
                       <>
-                        <ChevronRight size={12} className="text-gray-400" />
+                        <ChevronRight size={12} className="text-gray-600" />
                         <span>{formData.categoryMedium}</span>
                       </>
                     )}
                     {formData.categorySmall && (
                       <>
                         <ChevronRight size={12} className="text-gray-400" />
-                        <span className="text-gray-500">
+                        <span className="text-gray-600">
                           {formData.categorySmall}
                         </span>
                       </>
@@ -510,13 +536,11 @@ export default function CreateProductPage() {
               </div>
             </div>
 
-            {/* 3. 상세 정보 & 가격 */}
+            {/* 3. 상세 정보 & 가격 (사장님의 수정된 UI + 로직 연결) */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
               <div className="flex items-center gap-2 mb-2 border-b border-gray-100 pb-3">
                 <Tag size={20} className="text-gray-900" />
-                <h2 className="text-lg font-bold text-gray-900">
-                  상세 정보 & 가격
-                </h2>
+                <h2 className="text-lg font-bold text-gray-900">상세 정보</h2>
               </div>
 
               {/* 1. 단위 */}
@@ -578,7 +602,7 @@ export default function CreateProductPage() {
 
               {/* 3. 가격 (판매가 & 할인가) */}
               <div className="grid grid-cols-2 gap-6">
-                {/* 판매가 (필수) */}
+                {/* 판매가 (base -> originalPrice) */}
                 <div className="col-span-1">
                   <label className="block text-sm font-bold text-gray-900 mb-2">
                     판매가 <span>*</span>
@@ -600,7 +624,7 @@ export default function CreateProductPage() {
                   </div>
                 </div>
 
-                {/* 할인가 (선택) - 배지 왼쪽 배치 */}
+                {/* 할인가 (discount -> discountPrice) */}
                 <div className="col-span-1">
                   <label className="block text-sm font-bold text-gray-700 mb-2">
                     할인가{" "}
@@ -609,7 +633,7 @@ export default function CreateProductPage() {
                     </span>
                   </label>
                   <div className="relative">
-                    {/* 할인율 배지 (왼쪽) */}
+                    {/* 할인율 배지 */}
                     {discountRate > 0 && (
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 bg-red-600 text-white text-[11px] px-1.5 py-0.5 rounded-md shadow-sm font-bold z-10 animate-pulse">
                         {discountRate}%
@@ -622,7 +646,6 @@ export default function CreateProductPage() {
                       type="number"
                       value={priceData.discount}
                       onChange={handlePriceChange}
-                      // 배지가 있으면 왼쪽 여백을 줘서 겹치지 않게 함
                       className={`w-full h-12 px-4 pr-9 border border-gray-300 rounded-xl text-gray-900 font-bold focus:border-gray-900 outline-none transition-all text-right text-lg placeholder:font-normal ${discountRate > 0 ? "pl-14" : ""}`}
                       placeholder="0"
                     />
@@ -811,7 +834,6 @@ export default function CreateProductPage() {
         input[type="number"] {
           -moz-appearance: textfield;
         }
-
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;
         }

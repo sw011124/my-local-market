@@ -2,8 +2,9 @@
 
 ## 구성
 - `services/python-backend`: FastAPI + SQLAlchemy + Alembic + Seed
+- `frontend`: Next.js 고객/관리자 웹 (Python API 연동 시작)
 - `services/java-frontend`: Spring Boot + Thymeleaf
-- `docker-compose.yml`: PostgreSQL + Python 백엔드 + Java 프론트 통합 실행
+- `docker-compose.yml`: PostgreSQL + Python 백엔드 + (Next 또는 Java) 프론트 프로필 실행
 
 ## 기본 정책 반영
 - 계정: 비회원 주문 + 주문번호/휴대폰 조회
@@ -12,14 +13,30 @@
 - 당일마감: 19:00
 - 중량상품: 예상금액 안내 + 실중량 정산 구조
 
-## 실행
+## 실행 (전환 모드: Next + Python)
 ```bash
-docker compose up -d --build db python-backend java-frontend
+docker compose --profile transition-next up -d --build db python-backend next-frontend
 ```
 
-- 고객 웹: http://localhost:8080
+- 고객 웹(Next, Docker): http://localhost:3101
 - 백엔드 API: http://localhost:8000/docs
 - DB: `localhost:5433` (`postgres/postgres`, DB: `market`)
+
+## 실행 (레거시 모드: Java + Python)
+```bash
+docker compose --profile legacy-java up -d --build db python-backend java-frontend
+```
+
+- 고객/관리자 웹(Java): http://localhost:8080
+
+## npm 스크립트
+```bash
+npm run transition:up   # Next + Python
+npm run legacy:up       # Java + Python
+npm run db:down         # 전체 종료
+```
+
+- 참고: 로컬 Next 개발 서버는 `3001`, Docker Next는 `3101` 포트를 사용합니다.
 
 ## 시드 데이터
 - 카테고리 4종, 상품 4종, 행사 1건
@@ -40,6 +57,17 @@ docker compose up -d --build db python-backend java-frontend
 ## 관리자 화면 (추가)
 - 주문 상세 관리: `/admin/orders/{id}` (부분품절/대체/환불)
 - 콘텐츠 관리: `/admin/content` (행사/배너/공지)
+
+## Next 연동 상태 (Sprint 1 착수)
+- Python REST API 클라이언트 레이어 추가: `frontend/lib/market-api.ts`
+- 타입 정의 추가: `frontend/lib/market-types.ts`
+- 홈 화면 API 연동: `frontend/app/page.tsx`
+- 상품 목록 API 연동: `frontend/app/products/page.tsx`
+- 상품 상세 API 연동: `frontend/app/products/[id]/page.tsx`
+- 장바구니 API 연동: `frontend/app/cart/page.tsx`
+- 체크아웃/주문생성 API 연동: `frontend/app/checkout/page.tsx`
+- 주문 조회 API 연동: `frontend/app/orders/lookup/page.tsx`
+- 주문 상세/취소 API 연동: `frontend/app/orders/[orderNo]/page.tsx`, `frontend/components/order-cancel-form.tsx`
 
 ## 최소 테스트
 - Python: `services/python-backend/tests/test_public_api.py`
