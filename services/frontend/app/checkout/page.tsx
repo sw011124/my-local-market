@@ -60,10 +60,7 @@ export default function CheckoutPage() {
       setLoading(true);
       try {
         const key = await ensureMarketSessionKey();
-        const [cartData, quoteData] = await Promise.all([
-          getCart(key),
-          quoteCheckout({ session_key: key, dong_code: form.dongCode }),
-        ]);
+        const [cartData, quoteData] = await Promise.all([getCart(key), quoteCheckout({ session_key: key, dong_code: form.dongCode })]);
 
         if (!mounted) {
           return;
@@ -133,156 +130,165 @@ export default function CheckoutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f4ef] text-[#1a2f27] px-4 py-6">
-      <section className="mx-auto grid max-w-6xl gap-4 md:grid-cols-[1.3fr_1fr]">
-        <article className="rounded-3xl border border-[#d8ddd3] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+    <main className="min-h-screen bg-[#f6f6f7] px-4 py-6 text-black">
+      <section className="mx-auto max-w-7xl">
+        <header className="mb-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
             <h1 className="text-2xl font-black">체크아웃</h1>
-            <Link href="/cart" className="text-sm font-bold text-[#166847]">
+            <Link href="/cart" className="text-sm font-bold text-red-600">
               장바구니로
             </Link>
           </div>
+          <p className="mt-1 text-xs text-gray-500">현장결제 기본 / 주문 전 재고와 금액이 재확인됩니다.</p>
+        </header>
 
-          {errorMessage && <p className="mb-3 rounded-xl bg-[#ffeceb] px-3 py-2 text-sm font-semibold text-[#8e3a30]">{errorMessage}</p>}
+        {errorMessage && <p className="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{errorMessage}</p>}
 
-          {loading && <p className="text-sm text-[#60756c]">체크아웃 정보를 불러오는 중입니다...</p>}
+        <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+          <article className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            {loading && <p className="text-sm text-gray-500">체크아웃 정보를 불러오는 중입니다...</p>}
 
-          {!loading && !hasItems && (
-            <div className="rounded-2xl border border-dashed border-[#d8ddd3] bg-[#f9fcfa] p-6 text-center">
-              <p className="text-sm text-[#5a6c64]">주문할 상품이 없습니다.</p>
-              <Link href="/products" className="mt-3 inline-block rounded-xl bg-[#166847] px-4 py-2 text-sm font-extrabold text-white">
-                상품 보러가기
-              </Link>
+            {!loading && !hasItems && (
+              <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+                <p className="text-sm text-gray-500">주문할 상품이 없습니다.</p>
+                <Link href="/products" className="mt-3 inline-block rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white">
+                  상품 보러가기
+                </Link>
+              </div>
+            )}
+
+            {!loading && hasItems && (
+              <form className="grid gap-3" onSubmit={(event) => void handleSubmit(event)}>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    required
+                    value={form.customerName}
+                    onChange={(event) => setField("customerName", event.target.value)}
+                    placeholder="이름"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                  <input
+                    required
+                    value={form.customerPhone}
+                    onChange={(event) => setField("customerPhone", event.target.value)}
+                    placeholder="휴대폰 번호"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                </div>
+                <input
+                  required
+                  value={form.addressLine1}
+                  onChange={(event) => setField("addressLine1", event.target.value)}
+                  placeholder="기본 주소"
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                />
+                <input
+                  value={form.addressLine2}
+                  onChange={(event) => setField("addressLine2", event.target.value)}
+                  placeholder="상세 주소 (동/호수)"
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                />
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    value={form.building}
+                    onChange={(event) => setField("building", event.target.value)}
+                    placeholder="건물명"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                  <input
+                    value={form.unitNo}
+                    onChange={(event) => setField("unitNo", event.target.value)}
+                    placeholder="동/호수"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    value={form.dongCode}
+                    onChange={(event) => setField("dongCode", event.target.value)}
+                    placeholder="행정동 코드"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                  <input
+                    value={form.apartmentName}
+                    onChange={(event) => setField("apartmentName", event.target.value)}
+                    placeholder="아파트명(선택)"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                </div>
+                <input
+                  type="datetime-local"
+                  value={form.requestedSlot}
+                  onChange={(event) => setField("requestedSlot", event.target.value)}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                />
+                <label className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.allowSubstitution}
+                    onChange={(event) => setField("allowSubstitution", event.target.checked)}
+                  />
+                  품절 시 대체상품 허용
+                </label>
+                <textarea
+                  value={form.deliveryRequestNote}
+                  onChange={(event) => setField("deliveryRequestNote", event.target.value)}
+                  placeholder="배송 요청사항"
+                  rows={3}
+                  className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                />
+
+                <button
+                  type="submit"
+                  disabled={submitting || !quote?.valid}
+                  className="rounded-xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {submitting ? "주문 처리 중..." : "현장결제로 주문하기"}
+                </button>
+              </form>
+            )}
+          </article>
+
+          <aside className="h-fit rounded-3xl border border-gray-100 bg-white p-5 shadow-sm lg:sticky lg:top-24">
+            <h2 className="text-lg font-black">주문 요약</h2>
+            <div className="mt-3 space-y-2 text-sm">
+              {(cart?.items ?? []).map((item) => (
+                <div key={item.id} className="flex items-start justify-between gap-2">
+                  <span className="text-gray-700">
+                    {item.product_name} x {item.qty}
+                  </span>
+                  <span className="font-bold">{formatPrice(item.line_total)}</span>
+                </div>
+              ))}
             </div>
-          )}
 
-          {!loading && hasItems && (
-            <form className="grid gap-3" onSubmit={(event) => void handleSubmit(event)}>
-              <input
-                required
-                value={form.customerName}
-                onChange={(event) => setField("customerName", event.target.value)}
-                placeholder="이름"
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
-              <input
-                required
-                value={form.customerPhone}
-                onChange={(event) => setField("customerPhone", event.target.value)}
-                placeholder="휴대폰 번호"
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
-              <input
-                required
-                value={form.addressLine1}
-                onChange={(event) => setField("addressLine1", event.target.value)}
-                placeholder="기본 주소"
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
-              <input
-                value={form.addressLine2}
-                onChange={(event) => setField("addressLine2", event.target.value)}
-                placeholder="상세 주소 (동/호수)"
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
-              <div className="grid gap-2 md:grid-cols-2">
-                <input
-                  value={form.building}
-                  onChange={(event) => setField("building", event.target.value)}
-                  placeholder="건물명"
-                  className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-                />
-                <input
-                  value={form.unitNo}
-                  onChange={(event) => setField("unitNo", event.target.value)}
-                  placeholder="동/호수"
-                  className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-                />
+            {quote && (
+              <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 text-sm">
+                <div className="flex justify-between">
+                  <span>상품금액</span>
+                  <strong>{formatPrice(quote.subtotal)}</strong>
+                </div>
+                <div className="mt-1 flex justify-between">
+                  <span>배송비</span>
+                  <strong>{formatPrice(quote.delivery_fee)}</strong>
+                </div>
+                <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 text-base">
+                  <span className="font-bold">예상총액</span>
+                  <strong className="font-black text-red-600">{formatPrice(quote.total_estimated)}</strong>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">
+                  최소주문 {formatPrice(quote.min_order_amount)} / 무료배송 {formatPrice(quote.free_delivery_threshold)}
+                </p>
               </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <input
-                  value={form.dongCode}
-                  onChange={(event) => setField("dongCode", event.target.value)}
-                  placeholder="행정동 코드"
-                  className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-                />
-                <input
-                  value={form.apartmentName}
-                  onChange={(event) => setField("apartmentName", event.target.value)}
-                  placeholder="아파트명(선택)"
-                  className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-                />
-              </div>
-              <input
-                type="datetime-local"
-                value={form.requestedSlot}
-                onChange={(event) => setField("requestedSlot", event.target.value)}
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
-              <label className="flex items-center gap-2 rounded-xl border border-[#d8ddd3] bg-[#f9fcfa] px-3 py-2 text-sm font-semibold">
-                <input
-                  type="checkbox"
-                  checked={form.allowSubstitution}
-                  onChange={(event) => setField("allowSubstitution", event.target.checked)}
-                />
-                품절 시 대체상품 허용
-              </label>
-              <textarea
-                value={form.deliveryRequestNote}
-                onChange={(event) => setField("deliveryRequestNote", event.target.value)}
-                placeholder="배송 요청사항"
-                rows={3}
-                className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
-              />
+            )}
 
-              <button
-                type="submit"
-                disabled={submitting || !quote?.valid}
-                className="rounded-xl bg-[#166847] px-4 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-[#8cb5a4]"
-              >
-                {submitting ? "주문 처리 중..." : "현장결제로 주문하기"}
-              </button>
-            </form>
-          )}
-        </article>
-
-        <article className="rounded-3xl border border-[#d8ddd3] bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black">주문 요약</h2>
-          <div className="mt-3 space-y-2 text-sm">
-            {(cart?.items ?? []).map((item) => (
-              <div key={item.id} className="flex items-start justify-between gap-2">
-                <span className="text-[#334b42]">
-                  {item.product_name} x {item.qty}
-                </span>
-                <span className="font-bold">{formatPrice(item.line_total)}</span>
-              </div>
-            ))}
-          </div>
-
-          {quote && (
-            <div className="mt-4 rounded-2xl border border-[#d8ddd3] bg-[#f9fcfa] p-4 text-sm">
-              <div className="flex justify-between">
-                <span>상품금액</span>
-                <strong>{formatPrice(quote.subtotal)}</strong>
-              </div>
-              <div className="mt-1 flex justify-between">
-                <span>배송비</span>
-                <strong>{formatPrice(quote.delivery_fee)}</strong>
-              </div>
-              <div className="mt-2 border-t border-[#d8ddd3] pt-2 flex justify-between text-base">
-                <span className="font-bold">예상총액</span>
-                <strong className="font-black text-[#145c3f]">{formatPrice(quote.total_estimated)}</strong>
-              </div>
-              <p className="mt-2 text-xs text-[#6a7e74]">최소주문 {formatPrice(quote.min_order_amount)} / 무료배송 {formatPrice(quote.free_delivery_threshold)}</p>
-            </div>
-          )}
-
-          {quote && !quote.valid && (
-            <p className="mt-3 rounded-xl bg-[#ffeceb] px-3 py-2 text-sm font-semibold text-[#8e3a30]">
-              주문 조건을 확인해 주세요: {quote.errors.join(", ")}
-            </p>
-          )}
-        </article>
+            {quote && !quote.valid && (
+              <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                주문 조건을 확인해 주세요: {quote.errors.join(", ")}
+              </p>
+            )}
+          </aside>
+        </div>
       </section>
     </main>
   );

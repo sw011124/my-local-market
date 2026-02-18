@@ -45,29 +45,29 @@ export default function OrderCancelForm({ orderNo, phone, canCancel }: OrderCanc
   }
 
   return (
-    <section className="mt-5 rounded-2xl border border-[#d8ddd3] bg-white p-4">
+    <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
       <h2 className="text-base font-black">주문 취소 요청</h2>
-      {!canCancel && <p className="mt-2 text-sm text-[#8e3a30]">현재 상태에서는 취소할 수 없습니다.</p>}
+      {!canCancel && <p className="mt-2 text-sm font-semibold text-red-700">현재 상태에서는 취소할 수 없습니다.</p>}
       {canCancel && (
         <>
           <input
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="mt-3 w-full rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm"
+            className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
             placeholder="취소 사유"
           />
           <button
             type="button"
             disabled={submitting}
             onClick={() => void handleCancelRequest()}
-            className="mt-3 rounded-xl bg-[#8e3a30] px-4 py-2 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-[#c48f87]"
+            className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {submitting ? "요청 중..." : "취소 요청"}
           </button>
         </>
       )}
-      {errorMessage && <p className="mt-3 rounded-xl bg-[#ffeceb] px-3 py-2 text-sm font-semibold text-[#8e3a30]">{errorMessage}</p>}
-      {infoMessage && <p className="mt-3 rounded-xl bg-[#e9f8f0] px-3 py-2 text-sm font-semibold text-[#146341]">{infoMessage}</p>}
+      {errorMessage && <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{errorMessage}</p>}
+      {infoMessage && <p className="mt-3 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">{infoMessage}</p>}
     </section>
   );
 }

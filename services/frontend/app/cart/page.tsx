@@ -97,44 +97,51 @@ function CartPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f4ef] text-[#1a2f27] px-4 py-6">
-      <section className="mx-auto max-w-5xl rounded-3xl border border-[#d8ddd3] bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-black">장바구니</h1>
-          <Link href="/products" className="text-sm font-bold text-[#166847]">
-            상품 더보기
-          </Link>
-        </div>
-
-        {infoMessage && <p className="mb-3 rounded-xl bg-[#e9f8f0] px-3 py-2 text-sm font-semibold text-[#146341]">{infoMessage}</p>}
-        {errorMessage && <p className="mb-3 rounded-xl bg-[#ffeceb] px-3 py-2 text-sm font-semibold text-[#8e3a30]">{errorMessage}</p>}
-
-        {loading && <p className="text-sm text-[#5a6c64]">장바구니를 불러오는 중입니다...</p>}
-
-        {!loading && !hasItems && (
-          <div className="rounded-2xl border border-dashed border-[#d8ddd3] bg-[#f9fcfa] p-8 text-center">
-            <p className="text-sm text-[#5a6c64]">장바구니가 비어 있습니다.</p>
-            <Link href="/products" className="mt-3 inline-block rounded-xl bg-[#166847] px-4 py-2 text-sm font-extrabold text-white">
-              상품 보러가기
+    <main className="min-h-screen bg-[#f6f6f7] px-4 py-6 text-black">
+      <section className="mx-auto max-w-7xl">
+        <div className="mb-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-black">장바구니</h1>
+            <Link href="/products" className="text-sm font-bold text-red-600">
+              상품 더보기
             </Link>
           </div>
+          <p className="mt-1 text-xs font-medium text-gray-500">수량 변경 후 체크아웃으로 이동하세요.</p>
+        </div>
+
+        {infoMessage && <p className="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{infoMessage}</p>}
+        {errorMessage && <p className="mb-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{errorMessage}</p>}
+
+        {loading && (
+          <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+            <p className="text-sm text-gray-500">장바구니를 불러오는 중입니다...</p>
+          </section>
+        )}
+
+        {!loading && !hasItems && (
+          <section className="rounded-3xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm">
+            <p className="text-sm text-gray-500">장바구니가 비어 있습니다.</p>
+            <Link href="/products" className="mt-3 inline-flex rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white">
+              상품 보러가기
+            </Link>
+          </section>
         )}
 
         {!loading && hasItems && cart && (
-          <>
+          <section className="grid gap-4 lg:grid-cols-[1.8fr_1fr]">
             <div className="space-y-3">
               {cart.items.map((item) => (
-                <article key={item.id} className="rounded-2xl border border-[#d8ddd3] p-4">
+                <article key={item.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-sm font-bold leading-5">{item.product_name}</h2>
-                      <p className="mt-1 text-xs text-[#60756c]">단가 {formatPrice(item.unit_price)}</p>
-                      {item.is_weight_item && <p className="text-[11px] font-semibold text-[#b06f21]">중량상품: 실중량 정산</p>}
+                      <h2 className="text-sm font-bold leading-5 text-gray-900">{item.product_name}</h2>
+                      <p className="mt-1 text-xs text-gray-500">단가 {formatPrice(item.unit_price)}</p>
+                      {item.is_weight_item && <p className="text-[11px] font-semibold text-red-600">중량상품: 실중량 정산</p>}
                     </div>
                     <button
                       type="button"
                       onClick={() => void removeItem(item.id)}
-                      className="rounded-lg border border-[#d8ddd3] px-2 py-1 text-xs font-bold hover:bg-[#f4f6f5]"
+                      className="rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-600 transition hover:border-red-300 hover:text-red-600"
                     >
                       삭제
                     </button>
@@ -145,7 +152,7 @@ function CartPageContent() {
                       <button
                         type="button"
                         onClick={() => void changeQty(item.id, Math.max(1, item.qty - 1))}
-                        className="h-8 w-8 rounded-lg border border-[#d8ddd3] text-sm font-black"
+                        className="h-8 w-8 rounded-lg border border-gray-200 text-sm font-black"
                       >
                         -
                       </button>
@@ -153,30 +160,31 @@ function CartPageContent() {
                       <button
                         type="button"
                         onClick={() => void changeQty(item.id, item.qty + 1)}
-                        className="h-8 w-8 rounded-lg border border-[#d8ddd3] text-sm font-black"
+                        className="h-8 w-8 rounded-lg border border-gray-200 text-sm font-black"
                       >
                         +
                       </button>
                     </div>
-                    <p className="text-sm font-black text-[#145c3f]">{formatPrice(item.line_total)}</p>
+                    <p className="text-lg font-black text-red-600">{formatPrice(item.line_total)}</p>
                   </div>
                 </article>
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-[#d8ddd3] bg-[#f9fcfa] p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-[#60756c]">상품 합계</span>
-                <strong className="text-lg font-black">{formatPrice(cart.subtotal)}</strong>
+            <aside className="h-fit rounded-2xl border border-gray-100 bg-white p-4 shadow-sm lg:sticky lg:top-24">
+              <h2 className="text-base font-black">주문 요약</h2>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-sm text-gray-500">상품 합계</span>
+                <strong className="text-xl font-black text-red-600">{formatPrice(cart.subtotal)}</strong>
               </div>
               <Link
                 href="/checkout"
-                className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-[#166847] px-4 py-3 text-sm font-extrabold text-white"
+                className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-red-500"
               >
                 체크아웃으로 이동
               </Link>
-            </div>
-          </>
+            </aside>
+          </section>
         )}
       </section>
     </main>
@@ -185,10 +193,10 @@ function CartPageContent() {
 
 function CartPageFallback() {
   return (
-    <main className="min-h-screen bg-[#f6f4ef] text-[#1a2f27] px-4 py-6">
-      <section className="mx-auto max-w-5xl rounded-3xl border border-[#d8ddd3] bg-white p-5 shadow-sm">
+    <main className="min-h-screen bg-[#f6f6f7] px-4 py-6 text-black">
+      <section className="mx-auto max-w-7xl rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
         <h1 className="text-2xl font-black">장바구니</h1>
-        <p className="mt-3 text-sm text-[#5a6c64]">장바구니를 불러오는 중입니다...</p>
+        <p className="mt-3 text-sm text-gray-500">장바구니를 불러오는 중입니다...</p>
       </section>
     </main>
   );
