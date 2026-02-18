@@ -2,9 +2,13 @@
 
 ## 구성
 - `services/python-backend`: FastAPI + SQLAlchemy + Alembic + Seed
-- `frontend`: Next.js 고객/관리자 웹 (Python API 연동 시작)
+- `frontend`: Next.js 고객/관리자 웹 (Python API 연동)
 - `services/java-frontend`: Spring Boot + Thymeleaf
 - `docker-compose.yml`: PostgreSQL + Python 백엔드 + (Next 또는 Java) 프론트 프로필 실행
+
+## 정리 상태 (2026-02-18)
+- 레거시 Nest 백엔드 폴더(`backend/`) 제거 완료
+- 루트 `npm run dev`는 `Python + Next(local:3001)` 기준으로 동작
 
 ## 기본 정책 반영
 - 계정: 비회원 주문 + 주문번호/휴대폰 조회

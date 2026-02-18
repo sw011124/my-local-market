@@ -1,6 +1,6 @@
-# Next Frontend (전환 대상)
+# Next Frontend
 
-이 프론트엔드는 Python 백엔드(`services/python-backend`)의 REST API를 사용하도록 전환 중입니다.
+이 프론트엔드는 Python 백엔드(`services/python-backend`) REST API를 사용합니다.
 
 ## 로컬 실행
 

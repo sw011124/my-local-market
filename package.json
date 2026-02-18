@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "Hyper-local commerce service for Jinro Mart Mokgam",
   "scripts": {
-    "dev": "concurrently \"npm run db:up\" \"npm run dev:front\" \"npm run dev:back\"",
+    "dev": "concurrently \"npm run db:up\" \"npm run dev:front\"",
     "dev:front": "npm run dev --prefix frontend -- -p 3001",
-    "dev:back": "npm run start:dev --prefix backend",
     "dev:python": "docker compose up -d db python-backend",
     "db:up": "docker compose up -d db python-backend",
     "db:down": "docker compose down",
