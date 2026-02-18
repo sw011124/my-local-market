@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>체크아웃</title>
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div th:replace="fragments :: topbar"></div>
+<main class="container columns">
+  <section class="panel">
+    <h3>배송 및 주문 정보</h3>
+    <div class="message error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
+    <form method="post" action="/checkout/submit" class="grid" style="gap:10px;">
+      <label>이름
+        <input name="customerName" required>
+      </label>
+      <label>휴대폰
+        <input name="customerPhone" required placeholder="010-1234-5678">
+      </label>
+      <label>주소(기본)
+        <input name="addressLine1" required placeholder="시흥시 목감동 ...">
+      </label>
+      <label>상세주소
+        <input name="addressLine2" placeholder="동/호수">
+      </label>
+      <label>건물명
+        <input name="building" placeholder="아파트/빌라명">
+      </label>
+      <label>호수
+        <input name="unitNo" placeholder="101동 1001호">
+      </label>
+      <label>행정동 코드
+        <input name="dongCode" th:value="${dongCode}">
+      </label>
+      <label>아파트명(선택)
+        <input name="apartmentName">
+      </label>
+      <label>희망배송시간(선택)
+        <input type="datetime-local" name="requestedSlot">
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;">
+        <input type="checkbox" name="allowSubstitution" value="true" style="width:auto;">
+        부분 품절 시 대체상품 허용
+      </label>
+      <label>배송 요청사항
+        <textarea name="deliveryRequestNote" rows="3"></textarea>
+      </label>
+      <button type="submit">현장결제로 주문하기</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h3>주문 요약</h3>
+    <ul>
+      <li th:each="item : ${cart.items}" th:text="${item.product_name} + ' x ' + ${item.qty}"></li>
+    </ul>
+    <hr>
+    <p>상품금액: <strong th:text="${#numbers.formatDecimal(quote.subtotal, 0, 'COMMA', 0, 'POINT')} + '원'"></strong></p>
+    <p>배송비: <strong th:text="${#numbers.formatDecimal(quote.delivery_fee, 0, 'COMMA', 0, 'POINT')} + '원'"></strong></p>
+    <p class="price">예상총액: <span th:text="${#numbers.formatDecimal(quote.total_estimated, 0, 'COMMA', 0, 'POINT')} + '원'"></span></p>
+    <p class="meta">무료배송 기준: <span th:text="${#numbers.formatDecimal(quote.free_delivery_threshold, 0, 'COMMA', 0, 'POINT')} + '원'"></span></p>
+    <div class="message error" th:if="${quote.valid == false}">
+      주문 조건을 확인해 주세요: <span th:text="${quote.errors}"></span>
+    </div>
+  </section>
+</main>
+</body>
+</html>

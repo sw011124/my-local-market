@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주문 조회</title>
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div th:replace="fragments :: topbar"></div>
+<main class="container">
+  <section class="panel" style="max-width:520px;margin:0 auto;">
+    <h3>비회원 주문 조회</h3>
+    <div class="message error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
+    <form method="post" action="/orders/lookup" class="grid" style="gap:10px;">
+      <label>주문번호
+        <input name="orderNo" required>
+      </label>
+      <label>휴대폰
+        <input name="phone" required>
+      </label>
+      <button type="submit">조회</button>
+    </form>
+  </section>
+</main>
+</body>
+</html>

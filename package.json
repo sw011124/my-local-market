@@ -7,7 +7,9 @@
     "dev:front": "npm run dev --prefix frontend -- -p 3001",
     "dev:back": "npm run start:dev --prefix backend",
     "db:up": "docker compose up -d",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "mvp:up": "docker compose up -d --build db python-backend java-frontend",
+    "mvp:down": "docker compose down"
   },
   "dependencies": {},
   "devDependencies": {
