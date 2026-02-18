@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주문 상세 관리</title>
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<div th:replace="fragments :: topbar"></div>
+<main class="container grid" style="gap:14px;">
+  <div class="message error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
+  <div class="message success" th:if="${successMessage}" th:text="${successMessage}"></div>
+
+  <section class="panel">
+    <h3 th:text="'주문 상세 #' + ${order.order_no}"></h3>
+    <p class="meta">상태: <strong th:text="${order.status}"></strong></p>
+    <p class="meta">고객: <span th:text="${order.customer_name}"></span> / <span th:text="${order.customer_phone}"></span></p>
+    <p class="meta">예상총액: <span th:text="${#numbers.formatDecimal(order.total_estimated, 0, 'COMMA', 0, 'POINT')} + '원'"></span></p>
+    <p class="meta" th:if="${order.total_final != null}">최종금액: <span th:text="${#numbers.formatDecimal(order.total_final, 0, 'COMMA', 0, 'POINT')} + '원'"></span></p>
+  </section>
+
+  <section class="table-wrap">
+    <table>
+      <thead>
+      <tr>
+        <th>상품</th>
+        <th>주문수량</th>
+        <th>처리수량</th>
+        <th>예상금액</th>
+        <th>부분품절/대체 처리</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="item : ${order.items}">
+        <td th:text="${item.product_name}"></td>
+        <td th:text="${item.qty_ordered}"></td>
+        <td th:text="${item.qty_fulfilled}"></td>
+        <td th:text="${#numbers.formatDecimal(item.line_estimated, 0, 'COMMA', 0, 'POINT')} + '원'"></td>
+        <td>
+          <form class="grid" style="grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;" th:action="@{/admin/orders/{id}/shortage(id=${order.id})}" method="post">
+            <input type="hidden" name="orderItemId" th:value="${item.id}">
+            <select name="action">
+              <option value="PARTIAL_CANCEL">부분취소</option>
+              <option value="OUT_OF_STOCK">전체품절</option>
+              <option value="SUBSTITUTE">대체상품</option>
+            </select>
+            <input name="fulfilledQty" type="number" min="0" th:max="${item.qty_ordered}" placeholder="처리수량">
+            <input name="substitutionProductId" type="number" min="1" placeholder="대체상품ID">
+            <input name="substitutionQty" type="number" min="1" placeholder="대체수량">
+            <input name="reason" placeholder="사유">
+            <button type="submit">적용</button>
+          </form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h4>수동 환불 등록</h4>
+    <form class="grid" style="grid-template-columns:1fr 2fr auto;gap:6px;" th:action="@{/admin/orders/{id}/refunds(id=${order.id})}" method="post">
+      <input type="number" name="amount" min="1" step="1" placeholder="환불금액">
+      <input type="text" name="reason" placeholder="환불 사유">
+      <button class="warn" type="submit">환불 등록</button>
+    </form>
+  </section>
+
+  <a class="btn subtle" href="/admin/orders">목록으로</a>
+</main>
+</body>
+</html>

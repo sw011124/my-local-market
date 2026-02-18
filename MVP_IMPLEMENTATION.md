@@ -30,6 +30,17 @@ docker compose up -d --build db python-backend java-frontend
 - 고객: `/api/v1/public/*`, `/api/v1/cart`, `/api/v1/checkout/*`, `/api/v1/orders/*`
 - 관리자: `/api/v1/admin/auth/login`, `/api/v1/admin/orders`, `/api/v1/admin/orders/{id}/status`
 
+## 관리자 고급 API (추가)
+- 부분품절/대체 처리: `POST /api/v1/admin/orders/{id}/shortage-actions`
+- 환불 처리/조회: `POST /api/v1/admin/orders/{id}/refunds`, `GET /api/v1/admin/orders/{id}/refunds`
+- 행사 관리: `GET/POST/PATCH /api/v1/admin/promotions`
+- 배너 관리: `GET/POST/PATCH /api/v1/admin/banners`
+- 공지 관리: `GET/POST/PATCH /api/v1/admin/notices`
+
+## 관리자 화면 (추가)
+- 주문 상세 관리: `/admin/orders/{id}` (부분품절/대체/환불)
+- 콘텐츠 관리: `/admin/content` (행사/배너/공지)
+
 ## 최소 테스트
 - Python: `services/python-backend/tests/test_public_api.py`
 - Java: `services/java-frontend/src/test/java/com/localmarket/web/LocalMarketWebApplicationTests.java`

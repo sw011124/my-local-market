@@ -264,6 +264,19 @@ class CancellationRequest(Base):
     processed_by: Mapped[str | None] = mapped_column(String(60))
 
 
+class Refund(Base):
+    __tablename__ = 'refunds'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey('orders.id', ondelete='CASCADE'), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    method: Mapped[str] = mapped_column(String(40), nullable=False, default='COD_ADJUSTMENT')
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default='APPROVED')
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    processed_by: Mapped[str | None] = mapped_column(String(60))
+
+
 class Notice(TimestampMixin, Base):
     __tablename__ = 'notices'
 
@@ -274,6 +287,20 @@ class Notice(TimestampMixin, Base):
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+
+class Banner(TimestampMixin, Base):
+    __tablename__ = 'banners'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    image_url: Mapped[str] = mapped_column(String(400), nullable=False)
+    link_type: Mapped[str] = mapped_column(String(40), nullable=False, default='PROMOTION')
+    link_target: Mapped[str | None] = mapped_column(String(200))
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AdminUser(TimestampMixin, Base):

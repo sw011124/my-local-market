@@ -2,7 +2,15 @@ package com.localmarket.web.client;
 
 import com.localmarket.web.dto.AdminLoginRequestDto;
 import com.localmarket.web.dto.AdminLoginResponseDto;
+import com.localmarket.web.dto.AdminNoticeCreateRequestDto;
+import com.localmarket.web.dto.AdminNoticeDto;
 import com.localmarket.web.dto.AdminOrderStatusUpdateDto;
+import com.localmarket.web.dto.AdminPromotionCreateRequestDto;
+import com.localmarket.web.dto.AdminPromotionDto;
+import com.localmarket.web.dto.AdminRefundCreateRequestDto;
+import com.localmarket.web.dto.AdminShortageActionRequestDto;
+import com.localmarket.web.dto.BannerCreateRequestDto;
+import com.localmarket.web.dto.BannerDto;
 import com.localmarket.web.dto.CancelRequestDto;
 import com.localmarket.web.dto.CartDto;
 import com.localmarket.web.dto.CheckoutQuoteResponseDto;
@@ -11,6 +19,8 @@ import com.localmarket.web.dto.HomeResponseDto;
 import com.localmarket.web.dto.OrderCreateRequestDto;
 import com.localmarket.web.dto.OrderDto;
 import com.localmarket.web.dto.ProductDto;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import org.springframework.core.ParameterizedTypeReference;
@@ -145,8 +155,7 @@ public class MarketApiClient {
 
   public AdminLoginResponseDto adminLogin(String username, String password) {
     return restClient.post()
-        .uri("/admin/auth/login")
-        .body(new AdminLoginRequestDto(username, password))
+        .uri(uriBuilder -> uriBuilder.path("/admin/auth/login").queryParam("username", username).queryParam("password", password).build())
         .retrieve()
         .body(AdminLoginResponseDto.class);
   }
@@ -159,6 +168,14 @@ public class MarketApiClient {
         .body(new ParameterizedTypeReference<List<OrderDto>>() {});
   }
 
+  public OrderDto getAdminOrder(String adminToken, Integer orderId) {
+    return restClient.get()
+        .uri("/admin/orders/{orderId}", orderId)
+        .header("X-Admin-Token", adminToken)
+        .retrieve()
+        .body(OrderDto.class);
+  }
+
   public OrderDto updateAdminOrderStatus(String adminToken, Integer orderId, String status, String reason) {
     return restClient.patch()
         .uri("/admin/orders/{orderId}/status", orderId)
@@ -166,5 +183,139 @@ public class MarketApiClient {
         .body(new AdminOrderStatusUpdateDto(status, reason))
         .retrieve()
         .body(OrderDto.class);
+  }
+
+  public Map<String, Object> applyShortageAction(
+      String adminToken,
+      Integer orderId,
+      Integer orderItemId,
+      String action,
+      Integer fulfilledQty,
+      Integer substitutionProductId,
+      Integer substitutionQty,
+      String reason
+  ) {
+    return restClient.post()
+        .uri("/admin/orders/{orderId}/shortage-actions", orderId)
+        .header("X-Admin-Token", adminToken)
+        .body(new AdminShortageActionRequestDto(
+            orderItemId,
+            action,
+            fulfilledQty,
+            substitutionProductId,
+            substitutionQty,
+            reason
+        ))
+        .retrieve()
+        .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+  }
+
+  public Map<String, Object> createAdminRefund(
+      String adminToken,
+      Integer orderId,
+      BigDecimal amount,
+      String reason,
+      String method
+  ) {
+    return restClient.post()
+        .uri("/admin/orders/{orderId}/refunds", orderId)
+        .header("X-Admin-Token", adminToken)
+        .body(new AdminRefundCreateRequestDto(amount, reason, method))
+        .retrieve()
+        .body(new ParameterizedTypeReference<Map<String, Object>>() {});
+  }
+
+  public List<AdminPromotionDto> getAdminPromotions(String adminToken) {
+    return restClient.get()
+        .uri("/admin/promotions")
+        .header("X-Admin-Token", adminToken)
+        .retrieve()
+        .body(new ParameterizedTypeReference<List<AdminPromotionDto>>() {});
+  }
+
+  public AdminPromotionDto createAdminPromotion(
+      String adminToken,
+      String title,
+      String promoType,
+      OffsetDateTime startAt,
+      OffsetDateTime endAt,
+      String bannerImageUrl,
+      List<Integer> productIds,
+      BigDecimal promoPrice
+  ) {
+    return restClient.post()
+        .uri("/admin/promotions")
+        .header("X-Admin-Token", adminToken)
+        .body(new AdminPromotionCreateRequestDto(
+            title,
+            promoType,
+            startAt,
+            endAt,
+            true,
+            bannerImageUrl,
+            productIds,
+            promoPrice
+        ))
+        .retrieve()
+        .body(AdminPromotionDto.class);
+  }
+
+  public List<BannerDto> getAdminBanners(String adminToken) {
+    return restClient.get()
+        .uri("/admin/banners")
+        .header("X-Admin-Token", adminToken)
+        .retrieve()
+        .body(new ParameterizedTypeReference<List<BannerDto>>() {});
+  }
+
+  public BannerDto createAdminBanner(
+      String adminToken,
+      String title,
+      String imageUrl,
+      String linkType,
+      String linkTarget,
+      Integer displayOrder,
+      OffsetDateTime startAt,
+      OffsetDateTime endAt
+  ) {
+    return restClient.post()
+        .uri("/admin/banners")
+        .header("X-Admin-Token", adminToken)
+        .body(new BannerCreateRequestDto(
+            title,
+            imageUrl,
+            linkType,
+            linkTarget,
+            displayOrder,
+            true,
+            startAt,
+            endAt
+        ))
+        .retrieve()
+        .body(BannerDto.class);
+  }
+
+  public List<AdminNoticeDto> getAdminNotices(String adminToken) {
+    return restClient.get()
+        .uri("/admin/notices")
+        .header("X-Admin-Token", adminToken)
+        .retrieve()
+        .body(new ParameterizedTypeReference<List<AdminNoticeDto>>() {});
+  }
+
+  public AdminNoticeDto createAdminNotice(
+      String adminToken,
+      String title,
+      String body,
+      OffsetDateTime startAt,
+      OffsetDateTime endAt,
+      boolean pinned
+  ) {
+    return restClient.post()
+        .uri("/admin/notices")
+        .header("X-Admin-Token", adminToken)
+        .body(new AdminNoticeCreateRequestDto(title, body, startAt, endAt, pinned, true))
+        .retrieve()
+        .body(AdminNoticeDto.class);
   }
 }

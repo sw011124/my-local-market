@@ -196,3 +196,125 @@ class PolicyPatchInput(BaseModel):
     base_delivery_fee_default: Decimal | None = None
     free_delivery_threshold_default: Decimal | None = None
     allow_reservation_days: int | None = None
+
+
+class ShortageActionInput(BaseModel):
+    order_item_id: int
+    action: str = Field(pattern='^(SUBSTITUTE|PARTIAL_CANCEL|OUT_OF_STOCK)$')
+    fulfilled_qty: int | None = Field(default=None, ge=0, le=99)
+    substitution_product_id: int | None = None
+    substitution_qty: int | None = Field(default=None, ge=1, le=99)
+    reason: str | None = None
+
+
+class RefundCreateInput(BaseModel):
+    amount: Decimal = Field(gt=0)
+    reason: str = Field(min_length=2, max_length=300)
+    method: str = 'COD_ADJUSTMENT'
+
+
+class RefundOut(BaseModel):
+    id: int
+    order_id: int
+    amount: Decimal
+    reason: str
+    method: str
+    status: str
+    processed_at: datetime
+    processed_by: str | None
+
+
+class AdminPromotionOut(BaseModel):
+    id: int
+    title: str
+    promo_type: str
+    start_at: datetime
+    end_at: datetime
+    is_active: bool
+    banner_image_url: str | None
+    product_ids: list[int]
+    promo_price: Decimal | None
+
+
+class PromotionUpsertInput(BaseModel):
+    title: str
+    promo_type: str = 'WEEKLY'
+    start_at: datetime
+    end_at: datetime
+    is_active: bool = True
+    banner_image_url: str | None = None
+    product_ids: list[int] = Field(default_factory=list)
+    promo_price: Decimal | None = None
+
+
+class PromotionPatchInput(BaseModel):
+    title: str | None = None
+    promo_type: str | None = None
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    is_active: bool | None = None
+    banner_image_url: str | None = None
+    product_ids: list[int] | None = None
+    promo_price: Decimal | None = None
+
+
+class BannerOut(BaseModel):
+    id: int
+    title: str
+    image_url: str
+    link_type: str
+    link_target: str | None
+    display_order: int
+    is_active: bool
+    start_at: datetime
+    end_at: datetime
+
+
+class BannerUpsertInput(BaseModel):
+    title: str
+    image_url: str
+    link_type: str = 'PROMOTION'
+    link_target: str | None = None
+    display_order: int = 0
+    is_active: bool = True
+    start_at: datetime
+    end_at: datetime
+
+
+class BannerPatchInput(BaseModel):
+    title: str | None = None
+    image_url: str | None = None
+    link_type: str | None = None
+    link_target: str | None = None
+    display_order: int | None = None
+    is_active: bool | None = None
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+
+
+class NoticeOut(BaseModel):
+    id: int
+    title: str
+    body: str
+    start_at: datetime
+    end_at: datetime
+    is_pinned: bool
+    is_active: bool
+
+
+class NoticeUpsertInput(BaseModel):
+    title: str
+    body: str
+    start_at: datetime
+    end_at: datetime
+    is_pinned: bool = False
+    is_active: bool = True
+
+
+class NoticePatchInput(BaseModel):
+    title: str | None = None
+    body: str | None = None
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    is_pinned: bool | None = None
+    is_active: bool | None = None

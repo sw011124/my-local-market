@@ -15,6 +15,7 @@
   <section class="panel">
     <h3>주문 관리</h3>
     <p class="meta">MVP 단계에서는 상태 변경/피킹 전 취소 정책을 수동 처리합니다.</p>
+    <a class="btn subtle" href="/admin/content">행사/배너/공지 관리</a>
   </section>
 
   <section class="table-wrap">
@@ -26,6 +27,7 @@
         <th>현재상태</th>
         <th>예상총액</th>
         <th>상태변경</th>
+        <th>상세</th>
       </tr>
       </thead>
       <tbody>
@@ -43,6 +45,7 @@
             <button type="submit">적용</button>
           </form>
         </td>
+        <td><a class="btn subtle" th:href="@{/admin/orders/{id}(id=${order.id})}">주문상세</a></td>
       </tr>
       </tbody>
     </table>

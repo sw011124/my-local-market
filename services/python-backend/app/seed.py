@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     AdminUser,
+    Banner,
     Category,
     DeliveryZone,
     Notice,
@@ -163,6 +164,19 @@ def seed_if_empty(db: Session) -> None:
             end_at=now + timedelta(days=60),
             is_pinned=True,
             is_active=True,
+        )
+    )
+
+    db.add(
+        Banner(
+            title='오늘 특가',
+            image_url='https://picsum.photos/1280/420',
+            link_type='PROMOTION',
+            link_target='/promotions',
+            display_order=1,
+            is_active=True,
+            start_at=now - timedelta(days=1),
+            end_at=now + timedelta(days=14),
         )
     )
 
