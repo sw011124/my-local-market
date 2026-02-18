@@ -32,3 +32,38 @@ body {
   -ms-overflow-style: none; /* IE and Edge */
   scrollbar-width: none; /* Firefox */
 }
+
+/* Hover 시에만 스크롤바 노출 */
+.scrollbar-hover {
+  scrollbar-width: none;
+}
+
+.scrollbar-hover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-hover:hover {
+  scrollbar-width: thin;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: #d1d5db;
+}
+
+/* number input 기본 스핀 제거 */
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spin[type="number"] {
+  -moz-appearance: textfield;
+}
