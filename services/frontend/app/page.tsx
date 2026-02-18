@@ -1,316 +1,362 @@
 import Link from "next/link";
 import {
-  BadgePercent,
-  ChevronRight,
-  Clock3,
-  MapPin,
-  Megaphone,
   Search,
-  ShoppingBasket,
-  Sparkles,
-  Truck,
+  Home,
+  Menu,
+  ShoppingCart,
+  User,
+  Megaphone,
+  ChevronRight,
+  MapPin,
+  Plus,
 } from "lucide-react";
 
-import { getHomeData } from "@/lib/market-api";
-import type { HomeResponse, Product, Promotion } from "@/lib/market-types";
-
-function formatPrice(value: string): string {
-  const numeric = Number(value);
-  if (Number.isNaN(numeric)) {
-    return value;
-  }
-  return `${new Intl.NumberFormat("ko-KR").format(numeric)}원`;
-}
-
-function fallbackHomeData(): HomeResponse {
-  return {
-    categories: [],
-    featured_products: [],
-    promotions: [],
-    notices: [],
-  };
-}
-
-function fallbackPromotions(): Promotion[] {
-  return [
-    {
-      id: -1,
-      title: "이번 주 전단 특가",
-      promo_type: "WEEKLY_FLYER",
-      start_at: "",
-      end_at: "",
-      is_active: true,
-    },
-    {
-      id: -2,
-      title: "오늘의 신선식품 한정 할인",
-      promo_type: "TODAY_SPECIAL",
-      start_at: "",
-      end_at: "",
-      is_active: true,
-    },
-    {
-      id: -3,
-      title: "인기 생필품 묶음 프로모션",
-      promo_type: "BEST_BUNDLE",
-      start_at: "",
-      end_at: "",
-      is_active: true,
-    },
-  ];
-}
-
-const OPERATION = {
-  open: "09:00",
-  close: "21:00",
-  cutoff: "19:00",
-  minOrder: 15000,
-  freeDelivery: 40000,
-} as const;
-
-export default async function HomePage() {
-  let homeData = fallbackHomeData();
-  let apiError: string | null = null;
-
-  try {
-    homeData = await getHomeData();
-  } catch {
-    apiError = "백엔드 API 연결에 실패했습니다. Python 백엔드 상태를 확인해 주세요.";
-  }
-
-  const featuredProducts: Product[] = homeData.featured_products.slice(0, 8);
-  const promotionCards = (homeData.promotions.length > 0 ? homeData.promotions : fallbackPromotions()).slice(0, 3);
-
+export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,#321015_0%,#16090b_34%,#090909_70%,#050505_100%)] text-zinc-100">
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#090909]/95 px-4 pb-4 pt-3 backdrop-blur">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-red-300/80">local premium delivery</p>
-              <h1 className="text-2xl font-black tracking-tight text-white">목감 로컬마켓</h1>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <Link className="rounded-full border border-white/20 px-3 py-1.5 text-zinc-200 hover:border-red-400 hover:text-red-200" href="/products">
-                전체 상품
-              </Link>
-              <Link className="rounded-full border border-white/20 px-3 py-1.5 text-zinc-200 hover:border-red-400 hover:text-red-200" href="/orders/lookup">
-                주문 조회
-              </Link>
-              <Link className="rounded-full border border-red-500/50 bg-red-500/15 p-2 text-red-100 hover:bg-red-500/25" href="/cart">
-                <ShoppingBasket size={16} />
-              </Link>
-            </div>
+    <div className="mx-auto min-h-screen w-full max-w-[430px] bg-white pb-24 font-sans selection:bg-red-100">
+      <header className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 shadow-sm backdrop-blur-sm">
+        <div className="flex items-end justify-between px-4 py-4">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-3xl font-black leading-none tracking-tighter text-black">진로마트</h1>
+            <span className="mb-0.5 text-sm font-bold text-red-600">목감점</span>
           </div>
-
-          <div className="grid gap-3 md:grid-cols-[1.2fr_2fr] lg:grid-cols-[1.15fr_2fr_auto]">
-            <article className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <p className="mb-1 inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-300">
-                <MapPin size={13} /> 현재 주소
-              </p>
-              <p className="text-sm font-bold text-white">경기 시흥시 목감중앙로 45, 102동 1203호</p>
-              <p className="mt-1 text-xs text-zinc-400">배송 권역 확인 완료 (하이브리드 존)</p>
-            </article>
-
-            <form action="/products" method="get" className="flex items-center gap-2 rounded-2xl border border-red-500/35 bg-[#111111] px-3 py-2">
-              <Search size={17} className="text-red-300" />
-              <input
-                name="q"
-                placeholder="상품명, 브랜드, 행사 키워드 검색"
-                className="h-10 w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
+          <div className="mb-1 flex gap-4">
+            <Link href="/cart" className="group relative cursor-pointer">
+              <ShoppingCart
+                size={24}
+                className="text-black transition-colors group-hover:text-red-600"
               />
-              <button
-                type="submit"
-                className="inline-flex h-10 min-w-20 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-extrabold text-white transition hover:bg-red-500"
-              >
-                검색
-              </button>
-            </form>
-
-            <article className="grid grid-cols-2 gap-2 lg:w-64">
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[11px] text-zinc-400">당일 주문</p>
-                <p className="mt-1 text-sm font-black text-red-300">{OPERATION.cutoff} 마감</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-                <p className="text-[11px] text-zinc-400">최소 주문</p>
-                <p className="mt-1 text-sm font-black text-white">{formatPrice(String(OPERATION.minOrder))}</p>
-              </div>
-            </article>
+              <span className="absolute -right-1.5 -top-1.5 box-content flex h-4 w-4 items-center justify-center rounded-full border-2 border-white bg-red-600 text-[10px] font-bold text-white">
+                0
+              </span>
+            </Link>
           </div>
+        </div>
+
+        <div className="px-4 pb-4">
+          <Link href="/checkout" className="mb-2 flex items-center gap-1 text-xs font-medium text-gray-500">
+            <MapPin size={14} className="text-red-600" />
+            <span>배달지: 목감동 신안인스빌 정문...</span>
+            <ChevronRight size={14} />
+          </Link>
+          <form action="/products" method="get" className="relative">
+            <input
+              type="text"
+              name="q"
+              placeholder="오늘 세일하는 계란 찾아보세요!"
+              className="h-12 w-full rounded-xl border border-gray-100 bg-gray-50 px-4 pl-11 text-sm text-gray-900 placeholder:text-gray-400 transition-all focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+            />
+            <Search
+              size={20}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+          </form>
         </div>
       </header>
 
-      <section className="mx-auto mt-5 grid max-w-7xl gap-4 px-4 lg:grid-cols-[1.35fr_1fr]">
-        <article className="rounded-3xl border border-red-500/30 bg-gradient-to-br from-[#61131f] via-[#390d14] to-[#1b0b0e] p-7 shadow-[0_25px_65px_rgba(180,24,43,0.35)]">
-          <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-red-300/30 bg-red-600/20 px-3 py-1 text-xs font-bold text-red-100">
-            <Truck size={14} /> {OPERATION.open}~{OPERATION.close} 운영 / 당일마감 {OPERATION.cutoff}
-          </p>
-          <h2 className="text-3xl font-black leading-tight text-white md:text-4xl">첫 화면에서 바로 장보기</h2>
-          <p className="mt-3 max-w-xl text-sm text-zinc-200">
-            주소 확인, 검색, 전단 행사, 추천 상품까지 한 번에 확인하고 바로 주문하세요. 비회원 주문도 빠르게 진행됩니다.
-          </p>
-          <div className="mt-6 grid gap-2 sm:grid-cols-3">
-            <div className="rounded-xl border border-white/15 bg-black/25 px-3 py-2">
-              <p className="text-[11px] text-zinc-300">무료배송 기준</p>
-              <p className="mt-1 text-sm font-black text-white">{formatPrice(String(OPERATION.freeDelivery))}</p>
+      <section className="group relative h-72 w-full overflow-hidden bg-gray-900">
+        <div className="absolute inset-0 flex items-center justify-between bg-gradient-to-r from-black via-gray-900 to-red-900 p-6 px-8 text-white">
+          <div className="z-10 flex h-full flex-col justify-center">
+            <div className="mb-4 w-fit animate-pulse rounded-full bg-red-600 px-3 py-1 text-[10px] font-bold">
+              🔥 강력 추천 행사
             </div>
-            <div className="rounded-xl border border-white/15 bg-black/25 px-3 py-2">
-              <p className="text-[11px] text-zinc-300">결제 방식</p>
-              <p className="mt-1 text-sm font-black text-white">현장결제 기본</p>
-            </div>
-            <div className="rounded-xl border border-white/15 bg-black/25 px-3 py-2">
-              <p className="text-[11px] text-zinc-300">중량상품</p>
-              <p className="mt-1 text-sm font-black text-white">실중량 정산</p>
+            <h2 className="mb-3 text-3xl font-black leading-tight">
+              주말 강력추천
+              <br />
+              <span className="text-red-500">한우 1++ 등심</span>
+            </h2>
+            <div className="flex items-end gap-2">
+              <p className="text-2xl font-bold leading-none">50% 할인</p>
+              <span className="mb-0.5 text-sm font-medium text-gray-400 line-through">
+                120,000원
+              </span>
             </div>
           </div>
-          <div className="mt-5 flex gap-2">
-            <Link
-              href="/products"
-              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-extrabold text-white transition hover:bg-red-500"
-            >
-              상품 보러가기
-            </Link>
-            <Link
-              href="/orders/lookup"
-              className="rounded-xl border border-white/40 px-4 py-2 text-sm font-bold text-zinc-100 transition hover:bg-white/10"
-            >
-              주문 조회
-            </Link>
-          </div>
-        </article>
+          <div className="absolute -bottom-12 -right-12 h-48 w-48 rounded-full border-4 border-red-600/20 blur-sm"></div>
+        </div>
 
-        <article className="rounded-3xl border border-white/10 bg-[#101010] p-5">
-          <div className="flex items-center gap-2 text-sm font-bold text-red-200">
-            <Megaphone size={16} /> 전단/할인 배너
+        <div className="absolute bottom-6 left-8 flex gap-2">
+          <div className="h-1.5 w-6 rounded-full bg-red-600"></div>
+          <div className="h-1.5 w-1.5 rounded-full bg-gray-600"></div>
+          <div className="h-1.5 w-1.5 rounded-full bg-gray-600"></div>
+        </div>
+      </section>
+
+      <section className="mt-4 px-4">
+        <Link
+          href="/products?promo=true"
+          className="group flex cursor-pointer items-center justify-between rounded-2xl bg-black p-4 text-white shadow-lg shadow-gray-200 transition-colors hover:bg-gray-900"
+        >
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600 text-white transition-transform group-hover:scale-110">
+              <Megaphone size={20} fill="white" />
+            </div>
+            <div>
+              <p className="mb-0.5 text-base font-bold">종이 전단지 보기</p>
+              <p className="text-xs text-gray-300">이번주 행사상품 80종 한눈에!</p>
+            </div>
           </div>
-          <ul className="mt-3 space-y-2">
-            {promotionCards.map((promotion) => (
-              <li key={promotion.id} className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm">
-                <p className="font-bold text-white">{promotion.title}</p>
-                <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-zinc-300">
-                  <BadgePercent size={13} /> {promotion.promo_type}
+          <ChevronRight
+            size={20}
+            className="text-gray-500 transition-all group-hover:translate-x-1 group-hover:text-white"
+          />
+        </Link>
+      </section>
+
+      <section className="mt-8 px-4">
+        <div className="grid grid-cols-5 gap-y-6">
+          {[
+            "전단행사",
+            "과일",
+            "야채",
+            "정육",
+            "수산",
+            "계란/두부",
+            "유제품",
+            "쌀/잡곡",
+            "음료",
+            "공산품",
+          ].map((cate, idx) => (
+            <Link
+              href={`/products${idx === 0 ? "?promo=true" : ""}`}
+              key={idx}
+              className="group flex cursor-pointer flex-col items-center gap-2"
+            >
+              <div
+                className={`flex h-14 w-14 items-center justify-center rounded-2xl border text-2xl shadow-sm transition-all ${
+                  idx === 0
+                    ? "border-red-100 bg-red-50 font-bold text-red-600"
+                    : "border-gray-50 bg-gray-50 group-hover:border-black group-hover:bg-white"
+                }`}
+              >
+                {
+                  ["🔥", "🍎", "🥬", "🥩", "🐟", "🥚", "🥛", "🍚", "🥤", "🥫"][
+                    idx
+                  ]
+                }
+              </div>
+              <span
+                className={`text-[11px] font-bold tracking-tight ${
+                  idx === 0 ? "text-red-600" : "text-gray-600"
+                }`}
+              >
+                {cate}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-6 border-t-[4px] border-gray-50 pl-4 pt-4">
+        <div className="mb-4 flex items-center justify-between pr-6">
+          <h3 className="text-xl font-black text-black">⚡ 지금 안사면 손해!</h3>
+          <Link href="/products?sort=popular" className="cursor-pointer text-xs font-bold text-red-600">
+            더보기 &gt;
+          </Link>
+        </div>
+
+        <div className="no-scrollbar flex gap-4 overflow-x-auto pb-4 pr-4">
+          {[1, 2, 3, 4, 5, 6].map((item) => (
+            <div
+              key={item}
+              className="group flex w-[128px] min-w-[128px] cursor-pointer flex-col"
+            >
+              <div className="relative mb-3 aspect-square overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 transition-colors group-hover:border-red-600">
+                <div className="flex h-full w-full items-center justify-center bg-gray-50 text-xs font-medium text-gray-300">
+                  IMAGE
+                </div>
+                {item <= 2 && (
+                  <span className="absolute left-0 top-0 z-10 rounded-br-xl bg-red-600 px-2 py-1 text-[10px] font-bold text-white">
+                    품절임박
+                  </span>
+                )}
+                <Link
+                  href="/products"
+                  className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-gray-100 bg-white text-black shadow-md transition-all hover:border-red-600 hover:bg-red-600 hover:text-white"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                </Link>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-medium text-gray-400">
+                  국내산/성주
                 </p>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-600/10 px-3 py-2">
-            <p className="text-xs text-red-100">행사 상품은 결제 직전 재고/가격이 최종 반영됩니다.</p>
+                <h4 className="mb-1 h-10 line-clamp-2 text-sm font-bold leading-snug text-gray-900">
+                  [진로] 당도선별 꿀참외 1.5kg 박스
+                </h4>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-black text-red-600">9,900</span>
+                  <span className="text-xs font-medium text-gray-400 line-through">
+                    15,000
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-2 border-t-[4px] border-gray-50 pl-4 pt-4">
+        <div className="mb-4 flex items-center justify-between pr-6">
+          <h3 className="text-xl font-black text-black">🍎 당도최고! 제철 청과</h3>
+          <Link href="/products?categoryId=1" className="cursor-pointer text-xs font-bold text-red-600">
+            더보기 &gt;
+          </Link>
+        </div>
+
+        <div className="no-scrollbar flex gap-4 overflow-x-auto pb-4 pr-4">
+          {[1, 2, 3, 4, 5, 6].map((item) => (
+            <div
+              key={item}
+              className="group flex w-[128px] min-w-[128px] cursor-pointer flex-col"
+            >
+              <div className="relative mb-3 aspect-square overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 transition-colors group-hover:border-red-600">
+                <div className="flex h-full w-full items-center justify-center bg-gray-50 text-xs font-medium text-gray-300">
+                  FRUIT
+                </div>
+                <Link
+                  href="/products"
+                  className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-gray-100 bg-white text-black shadow-md transition-all hover:border-red-600 hover:bg-red-600 hover:text-white"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                </Link>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-medium text-gray-400">
+                  국내산/특
+                </p>
+                <h4 className="mb-2 h-10 line-clamp-2 text-sm font-bold leading-snug text-gray-900">
+                  고랭지 세척사과 1.2kg 봉지
+                </h4>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-black text-red-600">8,900</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-2 border-t-[4px] border-gray-50 pl-4 pt-4">
+        <div className="mb-4 flex items-center justify-between pr-6">
+          <h3 className="text-xl font-black text-black">🥩 믿고 먹는 정육 코너</h3>
+          <Link href="/products?categoryId=2" className="cursor-pointer text-xs font-bold text-red-600">
+            더보기 &gt;
+          </Link>
+        </div>
+
+        <div className="no-scrollbar flex gap-4 overflow-x-auto pb-4 pr-4">
+          {[1, 2, 3, 4, 5, 6].map((item) => (
+            <div
+              key={item}
+              className="group flex w-[128px] min-w-[128px] cursor-pointer flex-col"
+            >
+              <div className="relative mb-3 aspect-square overflow-hidden rounded-2xl border border-gray-100 bg-gray-50 transition-colors group-hover:border-red-600">
+                <div className="flex h-full w-full items-center justify-center bg-gray-50 text-xs font-medium text-gray-300">
+                  MEAT
+                </div>
+                {item <= 2 && (
+                  <span className="absolute left-0 top-0 z-10 rounded-br-xl bg-red-600 px-2 py-1 text-[10px] font-bold text-white">
+                    한정수량
+                  </span>
+                )}
+                <Link
+                  href="/products"
+                  className="absolute bottom-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-gray-100 bg-white text-black shadow-md transition-all hover:border-red-600 hover:bg-red-600 hover:text-white"
+                >
+                  <Plus size={16} strokeWidth={3} />
+                </Link>
+              </div>
+              <div>
+                <p className="mb-1 text-[10px] font-medium text-gray-400">
+                  한돈/1등급
+                </p>
+                <h4 className="mb-2 h-10 line-clamp-2 text-sm font-bold leading-snug text-gray-900">
+                  한돈 1등급 삼겹살 구이용 500g
+                </h4>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-black text-red-600">
+                    12,900
+                  </span>
+                  <span className="text-xs font-medium text-gray-400 line-through">
+                    16,500
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="mt-4 border-t border-gray-200 bg-gray-100 px-6 py-6 text-[11px] leading-relaxed text-gray-500">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <h5 className="mb-1 text-sm font-bold text-gray-700">고객센터</h5>
+            <p className="mb-1 text-xl font-black text-gray-900">
+              031) 411-0988
+            </p>
+            <p>
+              <span className="text-xs font-bold text-gray-600">
+                영업 시간:{" "}
+              </span>
+              <span className="text-xs">08:00 - 22:00</span>
+            </p>
           </div>
-        </article>
-      </section>
-
-      <section className="mx-auto mt-4 max-w-7xl px-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <article className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300">
-              <Clock3 size={14} /> 배송 시간
-            </p>
-            <p className="mt-2 text-sm font-bold text-white">오늘 {OPERATION.open} - {OPERATION.close}</p>
-          </article>
-          <article className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300">
-              <Sparkles size={14} /> 추천 기능
-            </p>
-            <p className="mt-2 text-sm font-bold text-white">인기/신상품 중심 자동 진열</p>
-          </article>
-          <article className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-            <p className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-300">
-              <ChevronRight size={14} /> 빠른 진입
-            </p>
-            <Link className="mt-2 inline-flex text-sm font-extrabold text-red-300 hover:text-red-200" href="/checkout">
-              장바구니에서 바로 결제
-            </Link>
-          </article>
-        </div>
-      </section>
-
-      <section className="mx-auto mt-6 max-w-7xl px-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-black text-white">카테고리</h3>
-          <Link className="text-sm font-bold text-red-300 hover:text-red-200" href="/products">
-            전체보기
-          </Link>
-        </div>
-        <div className="no-scrollbar flex gap-2 overflow-x-auto pb-2">
-          {homeData.categories.length === 0 && (
-            <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-zinc-300">등록된 카테고리가 없습니다.</span>
-          )}
-          {homeData.categories.map((category) => (
-            <Link
-              key={category.id}
-              href={`/products?categoryId=${category.id}`}
-              className="whitespace-nowrap rounded-full border border-white/20 bg-[#111111] px-4 py-2 text-sm font-bold text-zinc-200 transition hover:border-red-400 hover:text-red-200"
-            >
-              {category.name}
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto mt-4 max-w-7xl px-4">
-        <h3 className="mb-3 text-lg font-black text-white">행사 하이라이트</h3>
-        <div className="grid gap-3 md:grid-cols-3">
-          {promotionCards.map((promotion, index) => (
-            <article
-              key={`highlight-${promotion.id}`}
-              className="rounded-2xl border border-red-400/25 bg-gradient-to-br from-[#2b0d12] via-[#1c0b0f] to-[#12090b] p-4 shadow-[0_10px_35px_rgba(120,16,32,0.28)]"
-            >
-              <p className="text-xs font-bold text-red-200">#{index + 1} EVENT</p>
-              <h4 className="mt-2 line-clamp-2 min-h-10 text-sm font-extrabold text-white">{promotion.title}</h4>
-              <p className="mt-2 text-xs text-zinc-300">{promotion.promo_type}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto mt-6 max-w-7xl px-4 pb-16">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-lg font-black text-white">추천 상품</h3>
-          <Link className="text-sm font-bold text-red-300 hover:text-red-200" href="/products">
-            전체보기
-          </Link>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {featuredProducts.length === 0 && (
-            <article className="rounded-2xl border border-white/15 bg-white/5 p-4 text-sm text-zinc-300">노출할 상품이 없습니다.</article>
-          )}
-          {featuredProducts.map((product) => (
-            <article
-              key={product.id}
-              className="group rounded-2xl border border-white/10 bg-gradient-to-b from-[#181818] to-[#101010] p-4 shadow-[0_12px_24px_rgba(0,0,0,0.35)] transition hover:-translate-y-0.5 hover:border-red-500/45"
-            >
-              <div className="mb-3 h-28 rounded-xl bg-[linear-gradient(135deg,#282828_0%,#141414_50%,#3a1117_100%)] p-3">
-                <p className="text-xs font-semibold text-zinc-300">{product.category_name ?? "기타"}</p>
-                <h4 className="mt-2 line-clamp-2 min-h-10 text-sm font-bold leading-5 text-white">{product.name}</h4>
-              </div>
-              <p className="text-xs text-zinc-400">
-                {product.unit_label} | 재고 {product.stock_qty}
-              </p>
-              <p className="mt-2 text-xl font-black text-red-300">{formatPrice(product.effective_price)}</p>
-              {product.is_weight_item && (
-                <p className="mt-1 text-[11px] font-semibold text-red-200/90">중량상품: 실중량 정산</p>
-              )}
-              <div className="mt-3 flex gap-2">
-                <Link
-                  href={`/products/${product.id}`}
-                  className="inline-flex items-center justify-center rounded-lg border border-white/25 px-3 py-1.5 text-xs font-bold text-zinc-200 transition hover:border-red-300 hover:text-red-200"
-                >
-                  상세
-                </Link>
-                <Link
-                  href={`/cart?addProductId=${product.id}&qty=1`}
-                  className="inline-flex items-center justify-center rounded-lg bg-red-600 px-3 py-1.5 text-xs font-extrabold text-white transition group-hover:bg-red-500"
-                >
-                  담기
-                </Link>
-              </div>
-            </article>
-          ))}
+          <button className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 shadow-sm">
+            전화걸기
+          </button>
         </div>
 
-        {apiError && <p className="mt-4 rounded-xl bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-200">{apiError}</p>}
-      </section>
-    </main>
+        <hr className="my-4 border-gray-200" />
+
+        <div className="space-y-1">
+          <p>
+            <span className="font-bold text-gray-600">상호명:</span> 진로마트
+            목감점
+          </p>
+          <p>
+            <span className="font-bold text-gray-600">대표자:</span> 양웅철 |{" "}
+            <span className="font-bold text-gray-600">사업자번호:</span> 031)
+            411-0988
+          </p>
+          <p>
+            <span className="font-bold text-gray-600">주소:</span> 경기도 시흥시
+            목감동 244-1
+          </p>
+        </div>
+        <p className="mt-6 text-gray-300">
+          © 2026 Jinro Mart Mokgam. All rights reserved.
+        </p>
+      </footer>
+
+      <nav className="safe-area-bottom fixed bottom-0 left-1/2 z-50 grid h-16 w-full max-w-[430px] -translate-x-1/2 grid-cols-5 border-t border-gray-100 bg-white pb-2 text-[10px] font-medium text-gray-400">
+        <Link href="/" className="flex cursor-pointer flex-col items-center justify-center gap-1 font-bold text-red-600">
+          <Home size={24} className="stroke-[2.5]" />
+          <span>홈</span>
+        </Link>
+
+        <Link href="/products" className="flex cursor-pointer flex-col items-center justify-center gap-1 transition-colors hover:text-gray-900">
+          <Menu size={24} />
+          <span>카테고리</span>
+        </Link>
+
+        <Link href="/products" className="group flex cursor-pointer flex-col items-center justify-center gap-1 transition-colors hover:text-gray-900">
+          <div className="rounded-full bg-gray-50 p-1 transition-colors group-hover:bg-red-50 group-hover:text-red-600">
+            <Search size={22} className="stroke-[2.5]" />
+          </div>
+          <span className="group-hover:text-red-600">검색</span>
+        </Link>
+
+        <Link href="/products?promo=true" className="flex cursor-pointer flex-col items-center justify-center gap-1 transition-colors hover:text-gray-900">
+          <Megaphone size={24} />
+          <span>전단행사</span>
+        </Link>
+
+        <Link href="/orders/lookup" className="flex cursor-pointer flex-col items-center justify-center gap-1 transition-colors hover:text-gray-900">
+          <User size={24} />
+          <span>내 정보</span>
+        </Link>
+      </nav>
+    </div>
   );
 }
