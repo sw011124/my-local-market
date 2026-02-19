@@ -64,6 +64,71 @@ function buildQueryString(params: Record<string, string | number | boolean | und
   return serialized ? `?${serialized}` : "";
 }
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly path: string;
+  readonly payload: unknown;
+
+  constructor(path: string, status: number, message: string, payload: unknown) {
+    super(`API request failed (${path}): ${message}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.path = path;
+    this.payload = payload;
+  }
+}
+
+function extractErrorMessage(errorBody: unknown, status: number): string {
+  if (!errorBody || typeof errorBody !== "object") {
+    return String(status);
+  }
+
+  const root = errorBody as {
+    message?: unknown;
+    detail?: unknown;
+  };
+  const detail = root.detail;
+
+  if (detail && typeof detail === "object") {
+    const detailObject = detail as {
+      message?: unknown;
+      code?: unknown;
+      errors?: unknown;
+    };
+    const detailMessage = typeof detailObject.message === "string" ? detailObject.message : undefined;
+    const detailCode = typeof detailObject.code === "string" ? detailObject.code : undefined;
+    const detailErrors = Array.isArray(detailObject.errors)
+      ? detailObject.errors.filter((value): value is string => typeof value === "string")
+      : [];
+
+    if (detailMessage && detailErrors.length) {
+      return `${detailMessage}: ${detailErrors.join(", ")}`;
+    }
+    if (detailMessage) {
+      return detailMessage;
+    }
+    if (detailCode && detailErrors.length) {
+      return `${detailCode}: ${detailErrors.join(", ")}`;
+    }
+    if (detailCode) {
+      return detailCode;
+    }
+    if (detailErrors.length) {
+      return detailErrors.join(", ");
+    }
+  }
+
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (typeof root.message === "string") {
+    return root.message;
+  }
+
+  return JSON.stringify(errorBody);
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = resolveBaseUrl();
   const response = await fetch(`${baseUrl}${path}`, {
@@ -77,17 +142,14 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     let detailMessage = `${response.status}`;
+    let errorBody: unknown = null;
     try {
-      const errorBody = await response.json();
-      detailMessage =
-        errorBody?.detail?.message ??
-        errorBody?.detail?.code ??
-        errorBody?.message ??
-        JSON.stringify(errorBody);
+      errorBody = await response.json();
+      detailMessage = extractErrorMessage(errorBody, response.status);
     } catch {
       // Ignore parsing failures and keep status message.
     }
-    throw new Error(`API request failed (${path}): ${detailMessage}`);
+    throw new ApiError(path, response.status, detailMessage, errorBody);
   }
 
   return (await response.json()) as T;

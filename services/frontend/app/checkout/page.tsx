@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { createOrder, getCart, quoteCheckout } from "@/lib/market-api";
-import type { CartResponse, CheckoutQuoteResponse, CreateOrderRequest } from "@/lib/market-types";
+import { ApiError, createOrder, getCart, quoteCheckout } from "@/lib/market-api";
+import type { CartResponse, CheckoutQuoteRequest, CheckoutQuoteResponse, CreateOrderRequest } from "@/lib/market-types";
 import { ensureMarketSessionKey } from "@/lib/session-client";
 
 function formatPrice(value: string): string {
@@ -52,6 +52,70 @@ function parseNumber(value: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+const CHECKOUT_ERROR_MESSAGES: Record<string, string> = {
+  HOLIDAY_CLOSED: "선택한 날짜는 휴무일이라 주문이 불가합니다.",
+  STORE_CLOSED: "현재 영업시간이 아닙니다.",
+  CUTOFF_PASSED: "당일 주문 마감시간이 지났습니다.",
+  SLOT_UNAVAILABLE: "선택한 배송시간은 예약이 불가합니다.",
+  OUT_OF_DELIVERY_ZONE: "현재 입력한 주소는 배송 가능 지역이 아닙니다.",
+  INVALID_REQUEST: "요청 정보가 올바르지 않습니다.",
+  OUT_OF_STOCK: "장바구니 상품 중 품절 상품이 있습니다.",
+  MAX_QTY_EXCEEDED: "일부 상품이 최대 구매 수량을 초과했습니다.",
+  INSUFFICIENT_STOCK: "장바구니 상품 재고가 부족합니다.",
+  MIN_ORDER_NOT_MET: "최소 주문금액을 충족하지 못했습니다.",
+};
+
+function normalizeErrorCodes(codes: string[]): string[] {
+  return Array.from(
+    new Set(
+      codes.filter((value) => /^[A-Z_]+$/.test(value)),
+    ),
+  );
+}
+
+function mapCheckoutErrorMessage(code: string): string {
+  return CHECKOUT_ERROR_MESSAGES[code] ?? "주문 조건을 다시 확인해 주세요.";
+}
+
+function extractCheckoutErrorCodes(error: ApiError): string[] {
+  const payload = error.payload;
+
+  if (payload && typeof payload === "object") {
+    const detail = (payload as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object") {
+      const detailObject = detail as { code?: unknown; errors?: unknown };
+      if (Array.isArray(detailObject.errors)) {
+        const errors = detailObject.errors.filter((value): value is string => typeof value === "string");
+        return normalizeErrorCodes(errors);
+      }
+      if (typeof detailObject.code === "string" && detailObject.code !== "CHECKOUT_INVALID") {
+        return normalizeErrorCodes([detailObject.code]);
+      }
+    }
+  }
+
+  const matched = error.message.match(/[A-Z_]{3,}/g) ?? [];
+  return normalizeErrorCodes(matched.filter((value) => value in CHECKOUT_ERROR_MESSAGES));
+}
+
+function buildQuotePayload(
+  currentSessionKey: string,
+  dongCode: string,
+  apartmentName: string,
+  latitude: string,
+  longitude: string,
+  requestedSlot: string,
+): CheckoutQuoteRequest {
+  return {
+    session_key: currentSessionKey,
+    dong_code: dongCode || undefined,
+    apartment_name: apartmentName || undefined,
+    latitude: parseNumber(latitude),
+    longitude: parseNumber(longitude),
+    requested_slot_start: requestedSlot ? new Date(requestedSlot).toISOString() : undefined,
+  };
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
 
@@ -62,8 +126,22 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submitErrorCodes, setSubmitErrorCodes] = useState<string[]>([]);
 
   const hasItems = useMemo(() => (cart?.items?.length ?? 0) > 0, [cart]);
+  const checkoutErrorCodes = useMemo(() => {
+    if (submitErrorCodes.length > 0) {
+      return normalizeErrorCodes(submitErrorCodes);
+    }
+    if (quote && !quote.valid) {
+      return normalizeErrorCodes(quote.errors);
+    }
+    return [];
+  }, [quote, submitErrorCodes]);
+  const checkoutErrorMessages = useMemo(
+    () => checkoutErrorCodes.map((code) => `${mapCheckoutErrorMessage(code)} (${code})`),
+    [checkoutErrorCodes],
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -74,14 +152,7 @@ export default function CheckoutPage() {
         const key = await ensureMarketSessionKey();
         const [cartData, quoteData] = await Promise.all([
           getCart(key),
-          quoteCheckout({
-            session_key: key,
-            dong_code: form.dongCode || undefined,
-            apartment_name: form.apartmentName || undefined,
-            latitude: parseNumber(form.latitude),
-            longitude: parseNumber(form.longitude),
-            requested_slot_start: form.requestedSlot ? new Date(form.requestedSlot).toISOString() : undefined,
-          }),
+          quoteCheckout(buildQuotePayload(key, form.dongCode, form.apartmentName, form.latitude, form.longitude, form.requestedSlot)),
         ]);
 
         if (!mounted) {
@@ -91,6 +162,7 @@ export default function CheckoutPage() {
         setSessionKey(key);
         setCart(cartData);
         setQuote(quoteData);
+        setSubmitErrorCodes([]);
       } catch (error) {
         if (mounted) {
           const message = error instanceof Error ? error.message : "체크아웃 데이터를 불러오지 못했습니다.";
@@ -110,6 +182,12 @@ export default function CheckoutPage() {
     };
   }, [form.dongCode, form.apartmentName, form.latitude, form.longitude, form.requestedSlot]);
 
+  useEffect(() => {
+    if (quote?.valid) {
+      setSubmitErrorCodes([]);
+    }
+  }, [quote?.valid]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
@@ -120,6 +198,7 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
     setErrorMessage(null);
+    setSubmitErrorCodes([]);
 
     try {
       const payload: CreateOrderRequest = {
@@ -142,8 +221,32 @@ export default function CheckoutPage() {
       const order = await createOrder(payload);
       router.push(`/orders/${order.order_no}?phone=${form.customerPhone}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "주문 생성에 실패했습니다.";
-      setErrorMessage(message);
+      if (error instanceof ApiError) {
+        let codes = extractCheckoutErrorCodes(error);
+        if (!codes.length) {
+          try {
+            const refreshedQuote = await quoteCheckout(
+              buildQuotePayload(sessionKey, form.dongCode, form.apartmentName, form.latitude, form.longitude, form.requestedSlot),
+            );
+            setQuote(refreshedQuote);
+            if (!refreshedQuote.valid) {
+              codes = normalizeErrorCodes(refreshedQuote.errors);
+            }
+          } catch {
+            // Ignore quote refresh failures and fallback to API error message.
+          }
+        }
+
+        if (codes.length > 0) {
+          setSubmitErrorCodes(codes);
+          setErrorMessage("주문 조건이 변경되어 주문을 완료할 수 없습니다. 아래 안내를 확인해 주세요.");
+        } else {
+          setErrorMessage(error.message);
+        }
+      } else {
+        const message = error instanceof Error ? error.message : "주문 생성에 실패했습니다.";
+        setErrorMessage(message);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -320,10 +423,15 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {quote && !quote.valid && (
-              <p className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-                주문 조건을 확인해 주세요: {quote.errors.join(", ")}
-              </p>
+            {checkoutErrorMessages.length > 0 && (
+              <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+                <p>주문 조건을 확인해 주세요.</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs font-medium">
+                  {checkoutErrorMessages.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
             )}
           </aside>
         </div>
