@@ -286,7 +286,31 @@ export type AdminCreateProductRequest = {
   max_per_order?: number;
 };
 
+export type AdminUpdateProductRequest = {
+  category_id?: number | null;
+  name?: string;
+  sku?: string;
+  description?: string | null;
+  unit_label?: string;
+  origin_country?: string | null;
+  storage_method?: string | null;
+  is_weight_item?: boolean;
+  base_price?: string;
+  sale_price?: string | null;
+  status?: ProductStatus;
+  is_visible?: boolean;
+  stock_qty?: number;
+  max_per_order?: number;
+};
+
 export type AdminInventoryUpdateRequest = {
   stock_qty: number;
   max_per_order: number;
+};
+
+export type AdminDeleteProductResponse = {
+  ok: boolean;
+  product_id: number;
+  status: ProductStatus;
+  is_visible: boolean;
 };

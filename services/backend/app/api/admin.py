@@ -35,6 +35,7 @@ from app.schemas import (
     PolicyOut,
     PolicyPatchInput,
     ProductCreateInput,
+    ProductPatchInput,
     ProductOut,
     PromotionPatchInput,
     PromotionUpsertInput,
@@ -391,7 +392,14 @@ def admin_get_products(
     db: Session = Depends(get_db),
 ):
     require_admin_token(db, x_admin_token)
-    products = list(db.scalars(select(Product).order_by(Product.id.asc()).limit(500)))
+    products = list(
+        db.scalars(
+            select(Product)
+            .where(Product.is_visible.is_(True))
+            .order_by(Product.id.asc())
+            .limit(500)
+        )
+    )
     return [product_to_schema(product) for product in products]
 
 
@@ -406,6 +414,8 @@ def admin_create_product(
     duplicate = db.scalar(select(Product).where(Product.sku == payload.sku))
     if duplicate:
         raise HTTPException(status_code=409, detail={'code': 'DUPLICATE_SKU', 'message': '중복 SKU 입니다.'})
+    if payload.sale_price is not None and to_decimal(payload.sale_price) >= to_decimal(payload.base_price):
+        raise HTTPException(status_code=400, detail={'code': 'INVALID_PRICE', 'message': '할인가는 판매가보다 작아야 합니다.'})
 
     product = Product(
         category_id=payload.category_id,
@@ -428,6 +438,107 @@ def admin_create_product(
     db.refresh(product)
 
     return product_to_schema(product)
+
+
+@router.patch('/products/{product_id}', response_model=ProductOut)
+def admin_patch_product(
+    product_id: int,
+    payload: ProductPatchInput,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    admin = require_admin_token(db, x_admin_token)
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail={'code': 'PRODUCT_NOT_FOUND', 'message': '상품을 찾을 수 없습니다.'})
+
+    payload_fields = payload.model_fields_set
+
+    if 'sku' in payload_fields and payload.sku:
+        duplicate = db.scalar(select(Product).where(and_(Product.sku == payload.sku, Product.id != product_id)))
+        if duplicate:
+            raise HTTPException(status_code=409, detail={'code': 'DUPLICATE_SKU', 'message': '중복 SKU 입니다.'})
+
+    if 'category_id' in payload_fields:
+        product.category_id = payload.category_id
+    if 'name' in payload_fields and payload.name is not None:
+        product.name = payload.name
+    if 'sku' in payload_fields and payload.sku is not None:
+        product.sku = payload.sku
+    if 'description' in payload_fields:
+        product.description = payload.description
+    if 'unit_label' in payload_fields and payload.unit_label is not None:
+        product.unit_label = payload.unit_label
+    if 'origin_country' in payload_fields:
+        product.origin_country = payload.origin_country
+    if 'storage_method' in payload_fields:
+        product.storage_method = payload.storage_method
+    if 'is_weight_item' in payload_fields and payload.is_weight_item is not None:
+        product.is_weight_item = payload.is_weight_item
+    if 'base_price' in payload_fields and payload.base_price is not None:
+        product.base_price = payload.base_price
+    if 'sale_price' in payload_fields:
+        product.sale_price = payload.sale_price
+    if 'status' in payload_fields and payload.status is not None:
+        product.status = payload.status
+    if 'is_visible' in payload_fields and payload.is_visible is not None:
+        product.is_visible = payload.is_visible
+    if 'stock_qty' in payload_fields and payload.stock_qty is not None:
+        product.stock_qty = payload.stock_qty
+    if 'max_per_order' in payload_fields and payload.max_per_order is not None:
+        product.max_per_order = payload.max_per_order
+
+    if product.sale_price is not None and to_decimal(product.sale_price) >= to_decimal(product.base_price):
+        raise HTTPException(status_code=400, detail={'code': 'INVALID_PRICE', 'message': '할인가는 판매가보다 작아야 합니다.'})
+
+    def to_audit_value(raw_value):
+        if isinstance(raw_value, Decimal):
+            return str(raw_value)
+        if isinstance(raw_value, ProductStatus):
+            return raw_value.value
+        return raw_value
+
+    add_audit(
+        db,
+        admin,
+        'PRODUCT',
+        str(product_id),
+        'PRODUCT_UPDATED',
+        {field: to_audit_value(getattr(product, field)) for field in payload_fields},
+    )
+
+    db.commit()
+    db.refresh(product)
+
+    return product_to_schema(product)
+
+
+@router.delete('/products/{product_id}')
+def admin_delete_product(
+    product_id: int,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    admin = require_admin_token(db, x_admin_token)
+    product = db.get(Product, product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail={'code': 'PRODUCT_NOT_FOUND', 'message': '상품을 찾을 수 없습니다.'})
+
+    product.is_visible = False
+    product.status = ProductStatus.PAUSED
+
+    add_audit(
+        db,
+        admin,
+        'PRODUCT',
+        str(product_id),
+        'PRODUCT_DELETED',
+        {'is_visible': product.is_visible, 'status': product.status.value},
+    )
+
+    db.commit()
+
+    return {'ok': True, 'product_id': product_id, 'status': product.status.value, 'is_visible': product.is_visible}
 
 
 @router.patch('/products/{product_id}/inventory', response_model=ProductOut)

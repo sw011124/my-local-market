@@ -144,3 +144,70 @@ def test_admin_shortage_refund_and_content_crud() -> None:
 
     promo_list = client.get('/api/v1/admin/promotions', headers=headers)
     assert promo_list.status_code == 200
+
+
+def test_admin_product_patch_and_delete_flow() -> None:
+    login_resp = client.post(
+        '/api/v1/admin/auth/login',
+        json={'username': 'admin', 'password': 'admin1234'},
+    )
+    assert login_resp.status_code == 200
+    admin_token = login_resp.json()['access_token']
+    headers = {'X-Admin-Token': admin_token}
+
+    create_resp = client.post(
+        '/api/v1/admin/products',
+        headers=headers,
+        json={
+            'category_id': 1,
+            'name': '테스트 상품 CRUD',
+            'sku': 'TEST-CRUD-001',
+            'description': 'CRUD 기능 검증용',
+            'unit_label': '개',
+            'base_price': '6000',
+            'sale_price': '5000',
+            'stock_qty': 11,
+            'max_per_order': 3,
+        },
+    )
+    assert create_resp.status_code == 200
+    created = create_resp.json()
+    product_id = created['id']
+
+    patch_resp = client.patch(
+        f'/api/v1/admin/products/{product_id}',
+        headers=headers,
+        json={
+            'name': '테스트 상품 CRUD 수정',
+            'sale_price': '4500',
+            'status': 'PAUSED',
+            'stock_qty': 7,
+            'max_per_order': 2,
+        },
+    )
+    assert patch_resp.status_code == 200
+    patched = patch_resp.json()
+    assert patched['name'] == '테스트 상품 CRUD 수정'
+    assert patched['sale_price'] == '4500.00'
+    assert patched['status'] == 'PAUSED'
+    assert patched['stock_qty'] == 7
+    assert patched['max_per_order'] == 2
+
+    invalid_price_resp = client.patch(
+        f'/api/v1/admin/products/{product_id}',
+        headers=headers,
+        json={'sale_price': '7000'},
+    )
+    assert invalid_price_resp.status_code == 400
+
+    delete_resp = client.delete(f'/api/v1/admin/products/{product_id}', headers=headers)
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()['ok'] is True
+
+    admin_products_resp = client.get('/api/v1/admin/products', headers=headers)
+    assert admin_products_resp.status_code == 200
+    remaining_ids = [product['id'] for product in admin_products_resp.json()]
+    assert product_id not in remaining_ids
+
+    public_detail_resp = client.get(f'/api/v1/public/products/{product_id}')
+    assert public_detail_resp.status_code == 404

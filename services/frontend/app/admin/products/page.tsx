@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 
 import { clearAdminToken, readAdminToken } from "@/lib/admin-session-client";
-import { getAdminOrders, getAdminProducts, updateAdminInventory } from "@/lib/market-api";
-import type { OrderResponse, Product } from "@/lib/market-types";
+import { deleteAdminProduct, getAdminOrders, getAdminProducts, updateAdminProduct } from "@/lib/market-api";
+import type { OrderResponse, Product, ProductStatus } from "@/lib/market-types";
 
 function formatPrice(value: string): string {
   return `${new Intl.NumberFormat("ko-KR").format(Number(value))}원`;
@@ -51,7 +51,9 @@ export default function AdminProductsPage() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [inventoryDrafts, setInventoryDrafts] = useState<Record<number, { stockQty: string; maxPerOrder: string }>>({});
+  const [inventoryDrafts, setInventoryDrafts] = useState<Record<number, { stockQty: string; maxPerOrder: string; status: ProductStatus }>>(
+    {},
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -81,6 +83,7 @@ export default function AdminProductsPage() {
               {
                 stockQty: String(product.stock_qty),
                 maxPerOrder: String(product.max_per_order),
+                status: product.status,
               },
             ]),
           ),
@@ -150,6 +153,7 @@ export default function AdminProductsPage() {
       [product.id]: {
         stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
         maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
+        status: prev[product.id]?.status ?? product.status,
       },
     }));
   }
@@ -161,11 +165,12 @@ export default function AdminProductsPage() {
       [product.id]: {
         stockQty: String(product.stock_qty),
         maxPerOrder: String(product.max_per_order),
+        status: product.status,
       },
     }));
   }
 
-  async function saveInventory(productId: number): Promise<void> {
+  async function saveProduct(productId: number): Promise<void> {
     if (!token) {
       return;
     }
@@ -176,23 +181,45 @@ export default function AdminProductsPage() {
     }
 
     try {
-      const updated = await updateAdminInventory(token, productId, {
+      const updated = await updateAdminProduct(token, productId, {
         stock_qty: Math.max(0, Number(draft.stockQty) || 0),
         max_per_order: Math.max(1, Number(draft.maxPerOrder) || 1),
+        status: draft.status,
       });
 
       setProducts((prev) => prev.map((product) => (product.id === updated.id ? updated : product)));
       setEditingProductId(null);
-      setInfoMessage("상품 재고 정보를 저장했습니다.");
+      setInfoMessage("상품 정보를 저장했습니다.");
       setErrorMessage(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "재고 저장에 실패했습니다.";
+      const message = error instanceof Error ? error.message : "상품 저장에 실패했습니다.";
       setErrorMessage(message);
     }
   }
 
-  function showDeleteNotice(): void {
-    setInfoMessage("삭제 API는 아직 준비 중입니다. 현재는 재고 0 또는 상태 변경으로 관리해 주세요.");
+  async function handleDeleteProduct(product: Product): Promise<void> {
+    if (!token) {
+      return;
+    }
+    const shouldDelete = window.confirm(`'${product.name}' 상품을 삭제하시겠습니까?`);
+    if (!shouldDelete) {
+      return;
+    }
+
+    try {
+      await deleteAdminProduct(token, product.id);
+      setProducts((prev) => prev.filter((item) => item.id !== product.id));
+      setInventoryDrafts((prev) => {
+        const next = { ...prev };
+        delete next[product.id];
+        return next;
+      });
+      setInfoMessage("상품을 삭제했습니다.");
+      setErrorMessage(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "상품 삭제에 실패했습니다.";
+      setErrorMessage(message);
+    }
   }
 
   return (
@@ -239,7 +266,7 @@ export default function AdminProductsPage() {
               className="inline-flex h-11 items-center gap-2 rounded-xl bg-black px-4 text-sm font-extrabold text-white ring-1 ring-white/15 transition hover:bg-gray-800"
             >
               <Plus size={16} />
-              Register Product
+              + Register Product
             </Link>
           </div>
         </header>
@@ -319,7 +346,7 @@ export default function AdminProductsPage() {
                     const isActive = product.status === "ACTIVE";
 
                     return (
-                      <tr key={product.id} className="group border-t border-gray-100 transition hover:bg-gray-50/70">
+                      <tr key={product.id} className="group border-t border-gray-100 transition hover:bg-gray-50/70 focus-within:bg-gray-50/70">
                         <td className="px-4 py-3 align-top">
                           <p className="font-bold text-gray-900">{product.name}</p>
                           <p className="mt-0.5 text-xs text-gray-500">SKU {product.sku}</p>
@@ -343,10 +370,31 @@ export default function AdminProductsPage() {
                         </td>
 
                         <td className="px-4 py-3 text-center align-top">
-                          <span className="inline-flex" title={isActive ? "활성" : "비활성"}>
-                            {isActive ? <CheckCircle2 size={17} className="text-green-600" /> : <XCircle size={17} className="text-gray-400" />}
-                            <span className="sr-only">{isActive ? "활성" : "비활성"}</span>
-                          </span>
+                          {isEditing ? (
+                            <select
+                              value={inventoryDrafts[product.id]?.status ?? product.status}
+                              onChange={(event) =>
+                                setInventoryDrafts((prev) => ({
+                                  ...prev,
+                                  [product.id]: {
+                                    stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
+                                    maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
+                                    status: event.target.value as ProductStatus,
+                                  },
+                                }))
+                              }
+                              className="h-8 rounded-md border border-gray-200 px-2 text-xs font-bold text-gray-700 focus:border-red-500 focus:outline-none"
+                            >
+                              <option value="ACTIVE">ACTIVE</option>
+                              <option value="SOLD_OUT">SOLD_OUT</option>
+                              <option value="PAUSED">PAUSED</option>
+                            </select>
+                          ) : (
+                            <span className="inline-flex" title={isActive ? "활성" : "비활성"}>
+                              {isActive ? <CheckCircle2 size={17} className="text-green-600" /> : <XCircle size={17} className="text-gray-400" />}
+                              <span className="sr-only">{isActive ? "활성" : "비활성"}</span>
+                            </span>
+                          )}
                         </td>
 
                         <td className="px-4 py-3 align-top">
@@ -361,6 +409,7 @@ export default function AdminProductsPage() {
                                   [product.id]: {
                                     stockQty: event.target.value,
                                     maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
+                                    status: prev[product.id]?.status ?? product.status,
                                   },
                                 }))
                               }
@@ -383,6 +432,7 @@ export default function AdminProductsPage() {
                                   [product.id]: {
                                     stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
                                     maxPerOrder: event.target.value,
+                                    status: prev[product.id]?.status ?? product.status,
                                   },
                                 }))
                               }
@@ -395,12 +445,13 @@ export default function AdminProductsPage() {
 
                         <td className="px-4 py-3 align-top">
                           <div className="flex justify-end">
-                            <div className="flex items-center gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+                            <div className="pointer-events-none flex items-center gap-1 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
                               {!isEditing ? (
                                 <>
                                   <button
                                     type="button"
                                     onClick={() => beginEdit(product)}
+                                    aria-label={`${product.name} 상품 수정`}
                                     className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-xs font-bold text-gray-700 transition hover:border-gray-900 hover:text-gray-900"
                                   >
                                     <Pencil size={13} />
@@ -408,7 +459,8 @@ export default function AdminProductsPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={showDeleteNotice}
+                                    onClick={() => void handleDeleteProduct(product)}
+                                    aria-label={`${product.name} 상품 삭제`}
                                     className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-xs font-bold text-gray-500 transition hover:border-red-300 hover:text-red-600"
                                   >
                                     <Trash2 size={13} />
@@ -419,7 +471,7 @@ export default function AdminProductsPage() {
                                 <>
                                   <button
                                     type="button"
-                                    onClick={() => void saveInventory(product.id)}
+                                    onClick={() => void saveProduct(product.id)}
                                     className="inline-flex h-8 items-center rounded-md bg-gray-900 px-2 text-xs font-bold text-white transition hover:bg-black"
                                   >
                                     저장

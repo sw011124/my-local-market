@@ -176,6 +176,23 @@ class ProductCreateInput(BaseModel):
     max_per_order: int = 10
 
 
+class ProductPatchInput(BaseModel):
+    category_id: int | None = None
+    name: str | None = None
+    sku: str | None = None
+    description: str | None = None
+    unit_label: str | None = None
+    origin_country: str | None = None
+    storage_method: str | None = None
+    is_weight_item: bool | None = None
+    base_price: Decimal | None = None
+    sale_price: Decimal | None = None
+    status: ProductStatus | None = None
+    is_visible: bool | None = None
+    stock_qty: int | None = Field(default=None, ge=0)
+    max_per_order: int | None = Field(default=None, ge=1, le=99)
+
+
 class InventoryUpdateInput(BaseModel):
     stock_qty: int = Field(ge=0)
     max_per_order: int = Field(ge=1, le=99)

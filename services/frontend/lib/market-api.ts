@@ -2,6 +2,7 @@ import type {
   AdminBanner,
   AdminBannerCreateRequest,
   AdminCreateProductRequest,
+  AdminDeleteProductResponse,
   AdminInventoryUpdateRequest,
   AdminLoginResponse,
   AdminNotice,
@@ -15,6 +16,7 @@ import type {
   AdminRefundCreateRequest,
   AdminShortageActionRequest,
   AdminShortageActionResponse,
+  AdminUpdateProductRequest,
   CartResponse,
   CheckoutQuoteRequest,
   CheckoutQuoteResponse,
@@ -244,6 +246,25 @@ export async function createAdminProduct(adminToken: string, payload: AdminCreat
     method: "POST",
     headers: resolveAuthHeaders(adminToken),
     body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminProduct(
+  adminToken: string,
+  productId: number,
+  payload: AdminUpdateProductRequest,
+): Promise<Product> {
+  return apiFetch<Product>(`/admin/products/${productId}`, {
+    method: "PATCH",
+    headers: resolveAuthHeaders(adminToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminProduct(adminToken: string, productId: number): Promise<AdminDeleteProductResponse> {
+  return apiFetch<AdminDeleteProductResponse>(`/admin/products/${productId}`, {
+    method: "DELETE",
+    headers: resolveAuthHeaders(adminToken),
   });
 }
 
