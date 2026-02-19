@@ -2,7 +2,15 @@ import type {
   AdminBanner,
   AdminBannerCreateRequest,
   AdminCreateProductRequest,
+  AdminDeleteDeliveryZoneResponse,
+  AdminDeleteHolidayResponse,
   AdminDeleteProductResponse,
+  AdminDeliveryZone,
+  AdminDeliveryZoneCreateRequest,
+  AdminDeliveryZonePatchRequest,
+  AdminHoliday,
+  AdminHolidayCreateRequest,
+  AdminHolidayPatchRequest,
   AdminInventoryUpdateRequest,
   AdminPickingListResponse,
   AdminLoginResponse,
@@ -356,5 +364,83 @@ export async function patchAdminPolicy(
     method: "PATCH",
     headers: resolveAuthHeaders(adminToken),
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getAdminDeliveryZones(adminToken: string): Promise<AdminDeliveryZone[]> {
+  return apiFetch<AdminDeliveryZone[]>("/admin/delivery-zones", {
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function createAdminDeliveryZone(
+  adminToken: string,
+  payload: AdminDeliveryZoneCreateRequest,
+): Promise<AdminDeliveryZone> {
+  return apiFetch<AdminDeliveryZone>("/admin/delivery-zones", {
+    method: "POST",
+    headers: resolveAuthHeaders(adminToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchAdminDeliveryZone(
+  adminToken: string,
+  zoneId: number,
+  payload: AdminDeliveryZonePatchRequest,
+): Promise<AdminDeliveryZone> {
+  return apiFetch<AdminDeliveryZone>(`/admin/delivery-zones/${zoneId}`, {
+    method: "PATCH",
+    headers: resolveAuthHeaders(adminToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminDeliveryZone(
+  adminToken: string,
+  zoneId: number,
+): Promise<AdminDeleteDeliveryZoneResponse> {
+  return apiFetch<AdminDeleteDeliveryZoneResponse>(`/admin/delivery-zones/${zoneId}`, {
+    method: "DELETE",
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function getAdminHolidays(adminToken: string): Promise<AdminHoliday[]> {
+  return apiFetch<AdminHoliday[]>("/admin/holidays", {
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function createAdminHoliday(
+  adminToken: string,
+  payload: AdminHolidayCreateRequest,
+): Promise<AdminHoliday> {
+  return apiFetch<AdminHoliday>("/admin/holidays", {
+    method: "POST",
+    headers: resolveAuthHeaders(adminToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchAdminHoliday(
+  adminToken: string,
+  holidayId: number,
+  payload: AdminHolidayPatchRequest,
+): Promise<AdminHoliday> {
+  return apiFetch<AdminHoliday>(`/admin/holidays/${holidayId}`, {
+    method: "PATCH",
+    headers: resolveAuthHeaders(adminToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminHoliday(
+  adminToken: string,
+  holidayId: number,
+): Promise<AdminDeleteHolidayResponse> {
+  return apiFetch<AdminDeleteHolidayResponse>(`/admin/holidays/${holidayId}`, {
+    method: "DELETE",
+    headers: resolveAuthHeaders(adminToken),
   });
 }

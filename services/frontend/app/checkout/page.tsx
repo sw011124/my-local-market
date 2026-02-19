@@ -21,6 +21,8 @@ type CheckoutForm = {
   unitNo: string;
   dongCode: string;
   apartmentName: string;
+  latitude: string;
+  longitude: string;
   requestedSlot: string;
   allowSubstitution: boolean;
   deliveryRequestNote: string;
@@ -35,10 +37,20 @@ const INITIAL_FORM: CheckoutForm = {
   unitNo: "",
   dongCode: "1535011000",
   apartmentName: "",
+  latitude: "",
+  longitude: "",
   requestedSlot: "",
   allowSubstitution: false,
   deliveryRequestNote: "",
 };
+
+function parseNumber(value: string): number | undefined {
+  if (!value.trim()) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -60,7 +72,17 @@ export default function CheckoutPage() {
       setLoading(true);
       try {
         const key = await ensureMarketSessionKey();
-        const [cartData, quoteData] = await Promise.all([getCart(key), quoteCheckout({ session_key: key, dong_code: form.dongCode })]);
+        const [cartData, quoteData] = await Promise.all([
+          getCart(key),
+          quoteCheckout({
+            session_key: key,
+            dong_code: form.dongCode || undefined,
+            apartment_name: form.apartmentName || undefined,
+            latitude: parseNumber(form.latitude),
+            longitude: parseNumber(form.longitude),
+            requested_slot_start: form.requestedSlot ? new Date(form.requestedSlot).toISOString() : undefined,
+          }),
+        ]);
 
         if (!mounted) {
           return;
@@ -86,7 +108,7 @@ export default function CheckoutPage() {
     return () => {
       mounted = false;
     };
-  }, [form.dongCode]);
+  }, [form.dongCode, form.apartmentName, form.latitude, form.longitude, form.requestedSlot]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -110,6 +132,8 @@ export default function CheckoutPage() {
         unit_no: form.unitNo || undefined,
         dong_code: form.dongCode || undefined,
         apartment_name: form.apartmentName || undefined,
+        latitude: parseNumber(form.latitude),
+        longitude: parseNumber(form.longitude),
         requested_slot_start: form.requestedSlot ? new Date(form.requestedSlot).toISOString() : undefined,
         allow_substitution: form.allowSubstitution,
         delivery_request_note: form.deliveryRequestNote || undefined,
@@ -213,6 +237,20 @@ export default function CheckoutPage() {
                     value={form.apartmentName}
                     onChange={(event) => setField("apartmentName", event.target.value)}
                     placeholder="아파트명(선택)"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                </div>
+                <div className="grid gap-2 md:grid-cols-2">
+                  <input
+                    value={form.latitude}
+                    onChange={(event) => setField("latitude", event.target.value)}
+                    placeholder="위도(선택, 반경권역용)"
+                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                  />
+                  <input
+                    value={form.longitude}
+                    onChange={(event) => setField("longitude", event.target.value)}
+                    placeholder="경도(선택, 반경권역용)"
                     className="rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
                   />
                 </div>

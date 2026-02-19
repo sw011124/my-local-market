@@ -11,6 +11,8 @@ from app.models import (
     AdminUser,
     AuditLog,
     Banner,
+    DeliveryZone,
+    Holiday,
     Notice,
     Order,
     OrderItem,
@@ -20,11 +22,18 @@ from app.models import (
     Promotion,
     PromotionProduct,
     Refund,
+    ZoneType,
 )
 from app.schemas import (
     AdminLoginResponse,
     AdminOrderStatusUpdate,
     AdminPromotionOut,
+    DeliveryZoneOut,
+    DeliveryZonePatchInput,
+    DeliveryZoneUpsertInput,
+    HolidayOut,
+    HolidayPatchInput,
+    HolidayUpsertInput,
     BannerOut,
     BannerPatchInput,
     BannerUpsertInput,
@@ -189,6 +198,89 @@ def parse_order_statuses(statuses: str | None) -> list[OrderStatus]:
         unique_statuses.append(status)
         seen.add(status)
     return unique_statuses
+
+
+def validate_policy_times(open_time_value, close_time_value, cutoff_time_value) -> None:
+    if open_time_value >= close_time_value:
+        raise HTTPException(
+            status_code=400,
+            detail={'code': 'INVALID_POLICY_TIME', 'message': '영업 시작시간은 종료시간보다 빨라야 합니다.'},
+        )
+    if cutoff_time_value < open_time_value or cutoff_time_value > close_time_value:
+        raise HTTPException(
+            status_code=400,
+            detail={'code': 'INVALID_POLICY_TIME', 'message': '당일 마감시간은 영업시간 범위 안이어야 합니다.'},
+        )
+
+
+def delivery_zone_to_schema(zone: DeliveryZone) -> DeliveryZoneOut:
+    return DeliveryZoneOut(
+        id=zone.id,
+        zone_type=zone.zone_type,
+        dong_code=zone.dong_code,
+        apartment_name=zone.apartment_name,
+        center_lat=to_decimal(zone.center_lat) if zone.center_lat is not None else None,
+        center_lng=to_decimal(zone.center_lng) if zone.center_lng is not None else None,
+        radius_m=zone.radius_m,
+        min_order_amount=to_decimal(zone.min_order_amount) if zone.min_order_amount is not None else None,
+        base_fee=to_decimal(zone.base_fee) if zone.base_fee is not None else None,
+        free_delivery_threshold=(
+            to_decimal(zone.free_delivery_threshold) if zone.free_delivery_threshold is not None else None
+        ),
+        is_active=zone.is_active,
+    )
+
+
+def holiday_to_schema(holiday: Holiday) -> HolidayOut:
+    return HolidayOut(
+        id=holiday.id,
+        holiday_date=holiday.holiday_date,
+        reason=holiday.reason,
+        is_closed=holiday.is_closed,
+    )
+
+
+def validate_delivery_zone_fields(
+    zone_type: ZoneType,
+    dong_code: str | None,
+    apartment_name: str | None,
+    center_lat,
+    center_lng,
+    radius_m: int | None,
+) -> None:
+    if zone_type == ZoneType.DONG:
+        if not dong_code:
+            raise HTTPException(
+                status_code=400,
+                detail={'code': 'INVALID_ZONE', 'message': '동 권역은 dong_code가 필요합니다.'},
+            )
+    elif zone_type == ZoneType.APARTMENT:
+        if not apartment_name:
+            raise HTTPException(
+                status_code=400,
+                detail={'code': 'INVALID_ZONE', 'message': '아파트 권역은 apartment_name이 필요합니다.'},
+            )
+    elif zone_type == ZoneType.RADIUS:
+        if center_lat is None or center_lng is None or radius_m is None:
+            raise HTTPException(
+                status_code=400,
+                detail={'code': 'INVALID_ZONE', 'message': '반경 권역은 center_lat, center_lng, radius_m이 필요합니다.'},
+            )
+
+
+def normalize_delivery_zone_fields(zone: DeliveryZone) -> None:
+    if zone.zone_type == ZoneType.DONG:
+        zone.apartment_name = None
+        zone.center_lat = None
+        zone.center_lng = None
+        zone.radius_m = None
+    elif zone.zone_type == ZoneType.APARTMENT:
+        zone.center_lat = None
+        zone.center_lng = None
+        zone.radius_m = None
+    elif zone.zone_type == ZoneType.RADIUS:
+        zone.dong_code = None
+        zone.apartment_name = None
 
 
 @router.post('/auth/login', response_model=AdminLoginResponse)
@@ -1029,8 +1121,22 @@ def admin_patch_policy(
     x_admin_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> PolicyOut:
-    require_admin_token(db, x_admin_token)
+    admin = require_admin_token(db, x_admin_token)
     policy = get_or_create_policy(db)
+
+    open_time_value = payload.open_time if payload.open_time is not None else policy.open_time
+    close_time_value = payload.close_time if payload.close_time is not None else policy.close_time
+    cutoff_time_value = (
+        payload.same_day_cutoff_time if payload.same_day_cutoff_time is not None else policy.same_day_cutoff_time
+    )
+    validate_policy_times(open_time_value, close_time_value, cutoff_time_value)
+
+    if payload.open_time is not None:
+        policy.open_time = payload.open_time
+    if payload.close_time is not None:
+        policy.close_time = payload.close_time
+    if payload.same_day_cutoff_time is not None:
+        policy.same_day_cutoff_time = payload.same_day_cutoff_time
 
     if payload.min_order_amount_default is not None:
         policy.min_order_amount_default = payload.min_order_amount_default
@@ -1040,6 +1146,23 @@ def admin_patch_policy(
         policy.free_delivery_threshold_default = payload.free_delivery_threshold_default
     if payload.allow_reservation_days is not None:
         policy.allow_reservation_days = payload.allow_reservation_days
+
+    add_audit(
+        db,
+        admin,
+        'STORE_POLICY',
+        str(policy.id),
+        'POLICY_UPDATED',
+        {
+            'open_time': str(policy.open_time),
+            'close_time': str(policy.close_time),
+            'same_day_cutoff_time': str(policy.same_day_cutoff_time),
+            'min_order_amount_default': str(policy.min_order_amount_default),
+            'base_delivery_fee_default': str(policy.base_delivery_fee_default),
+            'free_delivery_threshold_default': str(policy.free_delivery_threshold_default),
+            'allow_reservation_days': policy.allow_reservation_days,
+        },
+    )
 
     db.commit()
     db.refresh(policy)
@@ -1053,3 +1176,213 @@ def admin_patch_policy(
         free_delivery_threshold_default=policy.free_delivery_threshold_default,
         allow_reservation_days=policy.allow_reservation_days,
     )
+
+
+@router.get('/delivery-zones', response_model=list[DeliveryZoneOut])
+def admin_get_delivery_zones(
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[DeliveryZoneOut]:
+    require_admin_token(db, x_admin_token)
+    rows = list(
+        db.scalars(
+            select(DeliveryZone).order_by(DeliveryZone.is_active.desc(), DeliveryZone.zone_type.asc(), DeliveryZone.id.desc())
+        )
+    )
+    return [delivery_zone_to_schema(row) for row in rows]
+
+
+@router.post('/delivery-zones', response_model=DeliveryZoneOut)
+def admin_create_delivery_zone(
+    payload: DeliveryZoneUpsertInput,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> DeliveryZoneOut:
+    admin = require_admin_token(db, x_admin_token)
+    validate_delivery_zone_fields(
+        payload.zone_type,
+        payload.dong_code,
+        payload.apartment_name,
+        payload.center_lat,
+        payload.center_lng,
+        payload.radius_m,
+    )
+
+    zone = DeliveryZone(
+        zone_type=payload.zone_type,
+        dong_code=payload.dong_code,
+        apartment_name=payload.apartment_name,
+        center_lat=payload.center_lat,
+        center_lng=payload.center_lng,
+        radius_m=payload.radius_m,
+        min_order_amount=payload.min_order_amount,
+        base_fee=payload.base_fee,
+        free_delivery_threshold=payload.free_delivery_threshold,
+        is_active=payload.is_active,
+    )
+    normalize_delivery_zone_fields(zone)
+
+    db.add(zone)
+    db.flush()
+    add_audit(db, admin, 'DELIVERY_ZONE', str(zone.id), 'ZONE_CREATED', {'zone_type': zone.zone_type.value})
+    db.commit()
+    db.refresh(zone)
+    return delivery_zone_to_schema(zone)
+
+
+@router.patch('/delivery-zones/{zone_id}', response_model=DeliveryZoneOut)
+def admin_patch_delivery_zone(
+    zone_id: int,
+    payload: DeliveryZonePatchInput,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> DeliveryZoneOut:
+    admin = require_admin_token(db, x_admin_token)
+    zone = db.get(DeliveryZone, zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail={'code': 'ZONE_NOT_FOUND', 'message': '배송 권역을 찾을 수 없습니다.'})
+
+    fields = payload.model_fields_set
+
+    if 'zone_type' in fields and payload.zone_type is not None:
+        zone.zone_type = payload.zone_type
+    if 'dong_code' in fields:
+        zone.dong_code = payload.dong_code
+    if 'apartment_name' in fields:
+        zone.apartment_name = payload.apartment_name
+    if 'center_lat' in fields:
+        zone.center_lat = payload.center_lat
+    if 'center_lng' in fields:
+        zone.center_lng = payload.center_lng
+    if 'radius_m' in fields:
+        zone.radius_m = payload.radius_m
+    if 'min_order_amount' in fields:
+        zone.min_order_amount = payload.min_order_amount
+    if 'base_fee' in fields:
+        zone.base_fee = payload.base_fee
+    if 'free_delivery_threshold' in fields:
+        zone.free_delivery_threshold = payload.free_delivery_threshold
+    if 'is_active' in fields and payload.is_active is not None:
+        zone.is_active = payload.is_active
+
+    validate_delivery_zone_fields(
+        zone.zone_type,
+        zone.dong_code,
+        zone.apartment_name,
+        zone.center_lat,
+        zone.center_lng,
+        zone.radius_m,
+    )
+    normalize_delivery_zone_fields(zone)
+
+    add_audit(
+        db,
+        admin,
+        'DELIVERY_ZONE',
+        str(zone.id),
+        'ZONE_UPDATED',
+        {'zone_type': zone.zone_type.value, 'is_active': zone.is_active},
+    )
+    db.commit()
+    db.refresh(zone)
+    return delivery_zone_to_schema(zone)
+
+
+@router.delete('/delivery-zones/{zone_id}')
+def admin_delete_delivery_zone(
+    zone_id: int,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    admin = require_admin_token(db, x_admin_token)
+    zone = db.get(DeliveryZone, zone_id)
+    if not zone:
+        raise HTTPException(status_code=404, detail={'code': 'ZONE_NOT_FOUND', 'message': '배송 권역을 찾을 수 없습니다.'})
+
+    zone.is_active = False
+    add_audit(db, admin, 'DELIVERY_ZONE', str(zone.id), 'ZONE_DEACTIVATED', {'is_active': False})
+    db.commit()
+    return {'ok': True, 'zone_id': zone.id, 'is_active': zone.is_active}
+
+
+@router.get('/holidays', response_model=list[HolidayOut])
+def admin_get_holidays(
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> list[HolidayOut]:
+    require_admin_token(db, x_admin_token)
+    rows = list(db.scalars(select(Holiday).order_by(Holiday.holiday_date.asc(), Holiday.id.asc())))
+    return [holiday_to_schema(row) for row in rows]
+
+
+@router.post('/holidays', response_model=HolidayOut)
+def admin_create_holiday(
+    payload: HolidayUpsertInput,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> HolidayOut:
+    admin = require_admin_token(db, x_admin_token)
+    duplicate = db.scalar(select(Holiday).where(Holiday.holiday_date == payload.holiday_date))
+    if duplicate:
+        raise HTTPException(status_code=409, detail={'code': 'DUPLICATE_HOLIDAY', 'message': '이미 등록된 날짜입니다.'})
+
+    holiday = Holiday(holiday_date=payload.holiday_date, reason=payload.reason, is_closed=payload.is_closed)
+    db.add(holiday)
+    db.flush()
+    add_audit(db, admin, 'HOLIDAY', str(holiday.id), 'HOLIDAY_CREATED', {'holiday_date': str(holiday.holiday_date)})
+    db.commit()
+    db.refresh(holiday)
+    return holiday_to_schema(holiday)
+
+
+@router.patch('/holidays/{holiday_id}', response_model=HolidayOut)
+def admin_patch_holiday(
+    holiday_id: int,
+    payload: HolidayPatchInput,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> HolidayOut:
+    admin = require_admin_token(db, x_admin_token)
+    holiday = db.get(Holiday, holiday_id)
+    if not holiday:
+        raise HTTPException(status_code=404, detail={'code': 'HOLIDAY_NOT_FOUND', 'message': '휴무일을 찾을 수 없습니다.'})
+
+    fields = payload.model_fields_set
+    if 'holiday_date' in fields and payload.holiday_date is not None and payload.holiday_date != holiday.holiday_date:
+        duplicate = db.scalar(select(Holiday).where(Holiday.holiday_date == payload.holiday_date))
+        if duplicate:
+            raise HTTPException(status_code=409, detail={'code': 'DUPLICATE_HOLIDAY', 'message': '이미 등록된 날짜입니다.'})
+        holiday.holiday_date = payload.holiday_date
+    if 'reason' in fields:
+        holiday.reason = payload.reason
+    if 'is_closed' in fields and payload.is_closed is not None:
+        holiday.is_closed = payload.is_closed
+
+    add_audit(
+        db,
+        admin,
+        'HOLIDAY',
+        str(holiday.id),
+        'HOLIDAY_UPDATED',
+        {'holiday_date': str(holiday.holiday_date), 'is_closed': holiday.is_closed},
+    )
+    db.commit()
+    db.refresh(holiday)
+    return holiday_to_schema(holiday)
+
+
+@router.delete('/holidays/{holiday_id}')
+def admin_delete_holiday(
+    holiday_id: int,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    admin = require_admin_token(db, x_admin_token)
+    holiday = db.get(Holiday, holiday_id)
+    if not holiday:
+        raise HTTPException(status_code=404, detail={'code': 'HOLIDAY_NOT_FOUND', 'message': '휴무일을 찾을 수 없습니다.'})
+
+    db.delete(holiday)
+    add_audit(db, admin, 'HOLIDAY', str(holiday.id), 'HOLIDAY_DELETED')
+    db.commit()
+    return {'ok': True, 'holiday_id': holiday_id}

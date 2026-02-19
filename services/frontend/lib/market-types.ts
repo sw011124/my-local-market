@@ -266,10 +266,85 @@ export type AdminPolicy = {
 };
 
 export type AdminPolicyPatchRequest = {
+  open_time?: string;
+  close_time?: string;
+  same_day_cutoff_time?: string;
   min_order_amount_default?: string;
   base_delivery_fee_default?: string;
   free_delivery_threshold_default?: string;
   allow_reservation_days?: number;
+};
+
+export type DeliveryZoneType = "DONG" | "APARTMENT" | "RADIUS";
+
+export type AdminDeliveryZone = {
+  id: number;
+  zone_type: DeliveryZoneType;
+  dong_code: string | null;
+  apartment_name: string | null;
+  center_lat: string | null;
+  center_lng: string | null;
+  radius_m: number | null;
+  min_order_amount: string | null;
+  base_fee: string | null;
+  free_delivery_threshold: string | null;
+  is_active: boolean;
+};
+
+export type AdminDeliveryZoneCreateRequest = {
+  zone_type: DeliveryZoneType;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  center_lat?: string | null;
+  center_lng?: string | null;
+  radius_m?: number | null;
+  min_order_amount?: string | null;
+  base_fee?: string | null;
+  free_delivery_threshold?: string | null;
+  is_active?: boolean;
+};
+
+export type AdminDeliveryZonePatchRequest = {
+  zone_type?: DeliveryZoneType;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  center_lat?: string | null;
+  center_lng?: string | null;
+  radius_m?: number | null;
+  min_order_amount?: string | null;
+  base_fee?: string | null;
+  free_delivery_threshold?: string | null;
+  is_active?: boolean;
+};
+
+export type AdminDeleteDeliveryZoneResponse = {
+  ok: boolean;
+  zone_id: number;
+  is_active: boolean;
+};
+
+export type AdminHoliday = {
+  id: number;
+  holiday_date: string;
+  reason: string | null;
+  is_closed: boolean;
+};
+
+export type AdminHolidayCreateRequest = {
+  holiday_date: string;
+  reason?: string | null;
+  is_closed?: boolean;
+};
+
+export type AdminHolidayPatchRequest = {
+  holiday_date?: string;
+  reason?: string | null;
+  is_closed?: boolean;
+};
+
+export type AdminDeleteHolidayResponse = {
+  ok: boolean;
+  holiday_id: number;
 };
 
 export type AdminCreateProductRequest = {

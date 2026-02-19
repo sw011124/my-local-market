@@ -133,7 +133,7 @@ def match_delivery_zone(
                     DeliveryZone.zone_type == ZoneType.APARTMENT,
                     DeliveryZone.apartment_name == apartment_name,
                 )
-            )
+            ).order_by(DeliveryZone.id.desc())
         )
         if apartment_zone:
             return apartment_zone
@@ -145,13 +145,20 @@ def match_delivery_zone(
                     DeliveryZone.zone_type == ZoneType.DONG,
                     DeliveryZone.dong_code == dong_code,
                 )
-            )
+            ).order_by(DeliveryZone.id.desc())
         )
         if dong_zone:
             return dong_zone
 
     if latitude is not None and longitude is not None:
-        radius_zones = list(db.scalars(base_query.where(DeliveryZone.zone_type == ZoneType.RADIUS)))
+        radius_zones = list(
+            db.scalars(
+                base_query.where(DeliveryZone.zone_type == ZoneType.RADIUS).order_by(
+                    DeliveryZone.radius_m.asc(),
+                    DeliveryZone.id.desc(),
+                )
+            )
+        )
         for zone in radius_zones:
             if zone.center_lat is None or zone.center_lng is None or zone.radius_m is None:
                 continue
@@ -188,25 +195,46 @@ def validate_checkout(
 
     policy = get_or_create_policy(db)
     today_local = now_local.date()
-
-    is_holiday = db.scalar(
-        select(Holiday).where(and_(Holiday.holiday_date == today_local, Holiday.is_closed.is_(True)))
-    )
-    if is_holiday:
-        errors.append('HOLIDAY_CLOSED')
-
     local_now_time = now_local.time()
-    if not (policy.open_time <= local_now_time <= policy.close_time):
-        errors.append('STORE_CLOSED')
 
+    local_slot = None
     if requested_slot_start is not None:
-        local_slot = requested_slot_start.astimezone(LOCAL_TZ)
-        if local_slot.date() == today_local and local_now_time > policy.same_day_cutoff_time:
+        if requested_slot_start.tzinfo is None:
+            local_slot = requested_slot_start.replace(tzinfo=LOCAL_TZ)
+        else:
+            local_slot = requested_slot_start.astimezone(LOCAL_TZ)
+
+    if local_slot is None:
+        is_holiday_today = db.scalar(
+            select(Holiday).where(and_(Holiday.holiday_date == today_local, Holiday.is_closed.is_(True)))
+        )
+        if is_holiday_today:
+            errors.append('HOLIDAY_CLOSED')
+
+        if not (policy.open_time <= local_now_time <= policy.close_time):
+            errors.append('STORE_CLOSED')
+
+        if local_now_time > policy.same_day_cutoff_time:
             errors.append('CUTOFF_PASSED')
+    else:
+        if local_slot <= now_local:
+            errors.append('SLOT_UNAVAILABLE')
 
         max_reservation_date = today_local + timedelta(days=policy.allow_reservation_days)
         if local_slot.date() > max_reservation_date:
             errors.append('SLOT_UNAVAILABLE')
+
+        if not (policy.open_time <= local_slot.time() <= policy.close_time):
+            errors.append('SLOT_UNAVAILABLE')
+
+        slot_holiday = db.scalar(
+            select(Holiday).where(and_(Holiday.holiday_date == local_slot.date(), Holiday.is_closed.is_(True)))
+        )
+        if slot_holiday:
+            errors.append('HOLIDAY_CLOSED')
+
+        if local_slot.date() == today_local and local_now_time > policy.same_day_cutoff_time:
+            errors.append('CUTOFF_PASSED')
 
     zone = match_delivery_zone(db, dong_code, apartment_name, latitude, longitude)
     if not zone:

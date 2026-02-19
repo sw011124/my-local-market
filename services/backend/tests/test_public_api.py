@@ -1,5 +1,5 @@
 import os
-from datetime import time
+from datetime import date, time, timedelta
 
 os.environ['DATABASE_URL'] = 'sqlite:///./test_api.db'
 
@@ -23,6 +23,7 @@ def setup_module() -> None:
         if policy:
             policy.open_time = time(hour=0)
             policy.close_time = time(hour=23, minute=59)
+            policy.same_day_cutoff_time = time(hour=23, minute=59)
             db.commit()
 
 
@@ -280,3 +281,121 @@ def test_admin_picking_list_flow() -> None:
 
     invalid_status_resp = client.get('/api/v1/admin/picking-list?statuses=INVALID_STATUS', headers=headers)
     assert invalid_status_resp.status_code == 400
+
+
+def test_admin_delivery_policy_zone_holiday_flow() -> None:
+    login_resp = client.post(
+        '/api/v1/admin/auth/login',
+        json={'username': 'admin', 'password': 'admin1234'},
+    )
+    assert login_resp.status_code == 200
+    admin_token = login_resp.json()['access_token']
+    headers = {'X-Admin-Token': admin_token}
+
+    policy_resp = client.patch(
+        '/api/v1/admin/policies',
+        headers=headers,
+        json={
+            'open_time': '09:00',
+            'close_time': '21:00',
+            'same_day_cutoff_time': '19:00',
+            'allow_reservation_days': 2,
+        },
+    )
+    assert policy_resp.status_code == 200
+    assert policy_resp.json()['open_time'] == '09:00:00'
+
+    invalid_zone_resp = client.post(
+        '/api/v1/admin/delivery-zones',
+        headers=headers,
+        json={'zone_type': 'DONG'},
+    )
+    assert invalid_zone_resp.status_code == 400
+
+    zone_resp = client.post(
+        '/api/v1/admin/delivery-zones',
+        headers=headers,
+        json={
+            'zone_type': 'DONG',
+            'dong_code': '9999999999',
+            'min_order_amount': '10000',
+            'base_fee': '2500',
+            'free_delivery_threshold': '30000',
+            'is_active': True,
+        },
+    )
+    assert zone_resp.status_code == 200
+    zone_id = zone_resp.json()['id']
+
+    target_date = date.today() + timedelta(days=1)
+    holiday_resp = client.post(
+        '/api/v1/admin/holidays',
+        headers=headers,
+        json={
+            'holiday_date': target_date.isoformat(),
+            'reason': '정기 휴무',
+            'is_closed': True,
+        },
+    )
+    assert holiday_resp.status_code == 200
+    holiday_id = holiday_resp.json()['id']
+
+    cart_resp = client.get('/api/v1/cart')
+    session_key = cart_resp.json()['session_key']
+    add_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': 1, 'qty': 2},
+    )
+    assert add_resp.status_code == 200
+
+    holiday_quote_resp = client.post(
+        '/api/v1/checkout/quote',
+        json={
+            'session_key': session_key,
+            'dong_code': '9999999999',
+            'requested_slot_start': f'{target_date.isoformat()}T10:00:00+09:00',
+        },
+    )
+    assert holiday_quote_resp.status_code == 200
+    holiday_quote_payload = holiday_quote_resp.json()
+    assert holiday_quote_payload['valid'] is False
+    assert 'HOLIDAY_CLOSED' in holiday_quote_payload['errors']
+
+    reopen_holiday_resp = client.patch(
+        f'/api/v1/admin/holidays/{holiday_id}',
+        headers=headers,
+        json={'is_closed': False},
+    )
+    assert reopen_holiday_resp.status_code == 200
+
+    valid_quote_resp = client.post(
+        '/api/v1/checkout/quote',
+        json={
+            'session_key': session_key,
+            'dong_code': '9999999999',
+            'requested_slot_start': f'{target_date.isoformat()}T10:00:00+09:00',
+        },
+    )
+    assert valid_quote_resp.status_code == 200
+    valid_quote_payload = valid_quote_resp.json()
+    assert valid_quote_payload['valid'] is True
+    assert valid_quote_payload['delivery_fee'] == '2500.00'
+
+    deactivate_zone_resp = client.delete(f'/api/v1/admin/delivery-zones/{zone_id}', headers=headers)
+    assert deactivate_zone_resp.status_code == 200
+
+    out_of_zone_quote_resp = client.post(
+        '/api/v1/checkout/quote',
+        json={
+            'session_key': session_key,
+            'dong_code': '9999999999',
+            'requested_slot_start': f'{target_date.isoformat()}T10:00:00+09:00',
+        },
+    )
+    assert out_of_zone_quote_resp.status_code == 200
+    out_of_zone_quote_payload = out_of_zone_quote_resp.json()
+    assert out_of_zone_quote_payload['valid'] is False
+    assert 'OUT_OF_DELIVERY_ZONE' in out_of_zone_quote_payload['errors']
+
+    delete_holiday_resp = client.delete(f'/api/v1/admin/holidays/{holiday_id}', headers=headers)
+    assert delete_holiday_resp.status_code == 200

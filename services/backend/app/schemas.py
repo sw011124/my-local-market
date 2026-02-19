@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-from app.models import OrderStatus, ProductStatus
+from app.models import OrderStatus, ProductStatus, ZoneType
 
 
 class CategoryOut(BaseModel):
@@ -244,10 +244,72 @@ class PolicyOut(BaseModel):
 
 
 class PolicyPatchInput(BaseModel):
+    open_time: time | None = None
+    close_time: time | None = None
+    same_day_cutoff_time: time | None = None
     min_order_amount_default: Decimal | None = None
     base_delivery_fee_default: Decimal | None = None
     free_delivery_threshold_default: Decimal | None = None
-    allow_reservation_days: int | None = None
+    allow_reservation_days: int | None = Field(default=None, ge=0, le=14)
+
+
+class DeliveryZoneOut(BaseModel):
+    id: int
+    zone_type: ZoneType
+    dong_code: str | None
+    apartment_name: str | None
+    center_lat: Decimal | None
+    center_lng: Decimal | None
+    radius_m: int | None
+    min_order_amount: Decimal | None
+    base_fee: Decimal | None
+    free_delivery_threshold: Decimal | None
+    is_active: bool
+
+
+class DeliveryZoneUpsertInput(BaseModel):
+    zone_type: ZoneType
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    center_lat: Decimal | None = None
+    center_lng: Decimal | None = None
+    radius_m: int | None = Field(default=None, ge=50, le=20000)
+    min_order_amount: Decimal | None = Field(default=None, ge=0)
+    base_fee: Decimal | None = Field(default=None, ge=0)
+    free_delivery_threshold: Decimal | None = Field(default=None, ge=0)
+    is_active: bool = True
+
+
+class DeliveryZonePatchInput(BaseModel):
+    zone_type: ZoneType | None = None
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    center_lat: Decimal | None = None
+    center_lng: Decimal | None = None
+    radius_m: int | None = Field(default=None, ge=50, le=20000)
+    min_order_amount: Decimal | None = Field(default=None, ge=0)
+    base_fee: Decimal | None = Field(default=None, ge=0)
+    free_delivery_threshold: Decimal | None = Field(default=None, ge=0)
+    is_active: bool | None = None
+
+
+class HolidayOut(BaseModel):
+    id: int
+    holiday_date: date
+    reason: str | None
+    is_closed: bool
+
+
+class HolidayUpsertInput(BaseModel):
+    holiday_date: date
+    reason: str | None = None
+    is_closed: bool = True
+
+
+class HolidayPatchInput(BaseModel):
+    holiday_date: date | None = None
+    reason: str | None = None
+    is_closed: bool | None = None
 
 
 class ShortageActionInput(BaseModel):
