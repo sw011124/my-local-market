@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
-from sqlalchemy import and_, func, select
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.utils import order_to_schema, product_to_schema
@@ -34,6 +34,9 @@ from app.schemas import (
     NoticeUpsertInput,
     PolicyOut,
     PolicyPatchInput,
+    PickingListItemOut,
+    PickingListOut,
+    PickingListSummaryOut,
     ProductCreateInput,
     ProductPatchInput,
     ProductOut,
@@ -149,6 +152,45 @@ def validate_promotion_products(db: Session, product_ids: list[int]) -> None:
         )
 
 
+def parse_order_statuses(statuses: str | None) -> list[OrderStatus]:
+    if not statuses:
+        return [OrderStatus.RECEIVED, OrderStatus.PICKING]
+
+    parsed_statuses: list[OrderStatus] = []
+    invalid_values: list[str] = []
+
+    for raw in statuses.split(','):
+        normalized = raw.strip()
+        if not normalized:
+            continue
+        try:
+            parsed_statuses.append(OrderStatus(normalized))
+        except ValueError:
+            invalid_values.append(normalized)
+
+    if invalid_values:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                'code': 'INVALID_STATUS',
+                'message': f'유효하지 않은 주문 상태 값입니다: {invalid_values}',
+            },
+        )
+
+    if not parsed_statuses:
+        return [OrderStatus.RECEIVED, OrderStatus.PICKING]
+
+    # Preserve order while removing duplicates.
+    seen = set()
+    unique_statuses: list[OrderStatus] = []
+    for status in parsed_statuses:
+        if status in seen:
+            continue
+        unique_statuses.append(status)
+        seen.add(status)
+    return unique_statuses
+
+
 @router.post('/auth/login', response_model=AdminLoginResponse)
 async def admin_login(request: Request, db: Session = Depends(get_db)) -> AdminLoginResponse:
     username = None
@@ -213,6 +255,100 @@ def admin_order_detail(
         raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
 
     return order_to_schema(order)
+
+
+@router.get('/picking-list', response_model=PickingListOut)
+def admin_get_picking_list(
+    statuses: str | None = Query(default='RECEIVED,PICKING'),
+    keyword: str | None = Query(default=None),
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> PickingListOut:
+    require_admin_token(db, x_admin_token)
+    target_statuses = parse_order_statuses(statuses)
+
+    stmt = (
+        select(Order, OrderItem, Product)
+        .join(OrderItem, OrderItem.order_id == Order.id)
+        .outerjoin(Product, Product.id == OrderItem.product_id)
+        .where(Order.status.in_(target_statuses))
+        .order_by(Order.ordered_at.asc(), Order.id.asc(), OrderItem.id.asc())
+    )
+
+    if keyword and keyword.strip():
+        pattern = f"%{keyword.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Order.order_no.ilike(pattern),
+                OrderItem.product_name_snapshot.ilike(pattern),
+                Product.name.ilike(pattern),
+                Product.pick_location.ilike(pattern),
+            )
+        )
+
+    rows = list(db.execute(stmt).all())
+    items: list[PickingListItemOut] = []
+    summary_map: dict[int, dict] = {}
+    order_ids: set[int] = set()
+
+    for order, order_item, product in rows:
+        product_name = product.name if product else order_item.product_name_snapshot
+        unit_label = product.unit_label if product else order_item.unit_snapshot
+        pick_location = product.pick_location if product else None
+
+        items.append(
+            PickingListItemOut(
+                order_id=order.id,
+                order_no=order.order_no,
+                order_status=order.status,
+                ordered_at=order.ordered_at,
+                requested_slot_start=order.requested_slot_start,
+                order_item_id=order_item.id,
+                product_id=order_item.product_id,
+                product_name=product_name,
+                unit_label=unit_label,
+                qty_ordered=order_item.qty_ordered,
+                qty_fulfilled=order_item.qty_fulfilled,
+                pick_location=pick_location,
+            )
+        )
+        order_ids.add(order.id)
+
+        summary = summary_map.get(order_item.product_id)
+        if not summary:
+            summary = {
+                'product_id': order_item.product_id,
+                'product_name': product_name,
+                'unit_label': unit_label,
+                'pick_location': pick_location,
+                'total_qty_ordered': 0,
+                'order_ids': set(),
+            }
+            summary_map[order_item.product_id] = summary
+
+        summary['total_qty_ordered'] += order_item.qty_ordered
+        summary['order_ids'].add(order.id)
+
+    summary_rows = [
+        PickingListSummaryOut(
+            product_id=entry['product_id'],
+            product_name=entry['product_name'],
+            unit_label=entry['unit_label'],
+            pick_location=entry['pick_location'],
+            total_qty_ordered=entry['total_qty_ordered'],
+            order_count=len(entry['order_ids']),
+        )
+        for entry in summary_map.values()
+    ]
+    summary_rows.sort(key=lambda row: ((row.pick_location or 'ZZZZ'), row.product_name))
+
+    return PickingListOut(
+        generated_at=datetime.now(timezone.utc),
+        order_count=len(order_ids),
+        line_count=len(items),
+        items=items,
+        summary=summary_rows,
+    )
 
 
 @router.patch('/orders/{order_id}/status')
@@ -425,6 +561,7 @@ def admin_create_product(
         unit_label=payload.unit_label,
         origin_country=payload.origin_country,
         storage_method=payload.storage_method,
+        pick_location=payload.pick_location,
         is_weight_item=payload.is_weight_item,
         base_price=payload.base_price,
         sale_price=payload.sale_price,
@@ -487,6 +624,8 @@ def admin_patch_product(
         product.stock_qty = payload.stock_qty
     if 'max_per_order' in payload_fields and payload.max_per_order is not None:
         product.max_per_order = payload.max_per_order
+    if 'pick_location' in payload_fields:
+        product.pick_location = payload.pick_location
 
     if product.sale_price is not None and to_decimal(product.sale_price) >= to_decimal(product.base_price):
         raise HTTPException(status_code=400, detail={'code': 'INVALID_PRICE', 'message': '할인가는 판매가보다 작아야 합니다.'})

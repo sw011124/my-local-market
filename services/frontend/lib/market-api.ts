@@ -4,6 +4,7 @@ import type {
   AdminCreateProductRequest,
   AdminDeleteProductResponse,
   AdminInventoryUpdateRequest,
+  AdminPickingListResponse,
   AdminLoginResponse,
   AdminNotice,
   AdminNoticeCreateRequest,
@@ -264,6 +265,22 @@ export async function updateAdminProduct(
 export async function deleteAdminProduct(adminToken: string, productId: number): Promise<AdminDeleteProductResponse> {
   return apiFetch<AdminDeleteProductResponse>(`/admin/products/${productId}`, {
     method: "DELETE",
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function getAdminPickingList(
+  adminToken: string,
+  params: {
+    statuses?: string;
+    keyword?: string;
+  } = {},
+): Promise<AdminPickingListResponse> {
+  const queryString = buildQueryString({
+    statuses: params.statuses,
+    keyword: params.keyword,
+  });
+  return apiFetch<AdminPickingListResponse>(`/admin/picking-list${queryString}`, {
     headers: resolveAuthHeaders(adminToken),
   });
 }

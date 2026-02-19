@@ -51,9 +51,9 @@ export default function AdminProductsPage() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [searchKeyword, setSearchKeyword] = useState("");
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
-  const [inventoryDrafts, setInventoryDrafts] = useState<Record<number, { stockQty: string; maxPerOrder: string; status: ProductStatus }>>(
-    {},
-  );
+  const [inventoryDrafts, setInventoryDrafts] = useState<
+    Record<number, { stockQty: string; maxPerOrder: string; status: ProductStatus; pickLocation: string }>
+  >({});
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
@@ -84,6 +84,7 @@ export default function AdminProductsPage() {
                 stockQty: String(product.stock_qty),
                 maxPerOrder: String(product.max_per_order),
                 status: product.status,
+                pickLocation: product.pick_location ?? "",
               },
             ]),
           ),
@@ -119,7 +120,7 @@ export default function AdminProductsPage() {
       return products;
     }
     return products.filter((product) => {
-      const searchable = [product.name, product.sku, product.category_name ?? ""]
+      const searchable = [product.name, product.sku, product.category_name ?? "", product.pick_location ?? ""]
         .join(" ")
         .toLowerCase();
       return searchable.includes(keyword);
@@ -154,6 +155,7 @@ export default function AdminProductsPage() {
         stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
         maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
         status: prev[product.id]?.status ?? product.status,
+        pickLocation: prev[product.id]?.pickLocation ?? product.pick_location ?? "",
       },
     }));
   }
@@ -166,6 +168,7 @@ export default function AdminProductsPage() {
         stockQty: String(product.stock_qty),
         maxPerOrder: String(product.max_per_order),
         status: product.status,
+        pickLocation: product.pick_location ?? "",
       },
     }));
   }
@@ -185,6 +188,7 @@ export default function AdminProductsPage() {
         stock_qty: Math.max(0, Number(draft.stockQty) || 0),
         max_per_order: Math.max(1, Number(draft.maxPerOrder) || 1),
         status: draft.status,
+        pick_location: draft.pickLocation.trim() || null,
       });
 
       setProducts((prev) => prev.map((product) => (product.id === updated.id ? updated : product)));
@@ -235,6 +239,9 @@ export default function AdminProductsPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Link href="/admin/orders" className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10">
                 주문 관리
+              </Link>
+              <Link href="/admin/picking" className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10">
+                피킹리스트
               </Link>
               <Link href="/admin/content" className="rounded-lg border border-white/20 px-3 py-1.5 text-xs font-bold text-white/90 transition hover:bg-white/10">
                 콘텐츠 관리
@@ -312,6 +319,7 @@ export default function AdminProductsPage() {
               <thead className="bg-gray-50">
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-gray-500">
                   <th className="px-4 py-3">상품</th>
+                  <th className="px-4 py-3">피킹위치</th>
                   <th className="px-4 py-3">가격</th>
                   <th className="px-4 py-3 text-center">배송</th>
                   <th className="px-4 py-3 text-center">활성</th>
@@ -324,7 +332,7 @@ export default function AdminProductsPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                       상품 데이터를 불러오는 중입니다...
                     </td>
                   </tr>
@@ -332,7 +340,7 @@ export default function AdminProductsPage() {
 
                 {!loading && filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                       검색 결과가 없습니다.
                     </td>
                   </tr>
@@ -350,6 +358,29 @@ export default function AdminProductsPage() {
                         <td className="px-4 py-3 align-top">
                           <p className="font-bold text-gray-900">{product.name}</p>
                           <p className="mt-0.5 text-xs text-gray-500">SKU {product.sku}</p>
+                        </td>
+
+                        <td className="px-4 py-3 align-top">
+                          {isEditing ? (
+                            <input
+                              value={inventoryDrafts[product.id]?.pickLocation ?? product.pick_location ?? ""}
+                              onChange={(event) =>
+                                setInventoryDrafts((prev) => ({
+                                  ...prev,
+                                  [product.id]: {
+                                    stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
+                                    maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
+                                    status: prev[product.id]?.status ?? product.status,
+                                    pickLocation: event.target.value,
+                                  },
+                                }))
+                              }
+                              placeholder="진열위치"
+                              className="h-9 w-36 rounded-lg border border-gray-200 px-2 text-sm focus:border-red-500 focus:outline-none"
+                            />
+                          ) : (
+                            <span className="font-semibold text-gray-700">{product.pick_location || "-"}</span>
+                          )}
                         </td>
 
                         <td className="px-4 py-3 align-top">
@@ -380,6 +411,7 @@ export default function AdminProductsPage() {
                                     stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
                                     maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
                                     status: event.target.value as ProductStatus,
+                                    pickLocation: prev[product.id]?.pickLocation ?? product.pick_location ?? "",
                                   },
                                 }))
                               }
@@ -410,6 +442,7 @@ export default function AdminProductsPage() {
                                     stockQty: event.target.value,
                                     maxPerOrder: prev[product.id]?.maxPerOrder ?? String(product.max_per_order),
                                     status: prev[product.id]?.status ?? product.status,
+                                    pickLocation: prev[product.id]?.pickLocation ?? product.pick_location ?? "",
                                   },
                                 }))
                               }
@@ -433,6 +466,7 @@ export default function AdminProductsPage() {
                                     stockQty: prev[product.id]?.stockQty ?? String(product.stock_qty),
                                     maxPerOrder: event.target.value,
                                     status: prev[product.id]?.status ?? product.status,
+                                    pickLocation: prev[product.id]?.pickLocation ?? product.pick_location ?? "",
                                   },
                                 }))
                               }

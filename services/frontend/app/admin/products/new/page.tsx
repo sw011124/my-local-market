@@ -198,6 +198,7 @@ export default function AdminProductNewPage() {
     description: "",
     unitLabel: "ea",
     storageMethod: "",
+    pickLocation: "",
     basePrice: "",
     discountPrice: "",
     stockQty: "0",
@@ -304,6 +305,7 @@ export default function AdminProductNewPage() {
         unit_label: form.unitLabel.trim() || "ea",
         origin_country: sourceValue.trim() || undefined,
         storage_method: form.storageMethod.trim() || undefined,
+        pick_location: form.pickLocation.trim() || null,
         is_weight_item: form.isWeightItem,
         base_price: form.basePrice,
         sale_price: form.discountPrice.trim() || null,
@@ -558,6 +560,16 @@ export default function AdminProductNewPage() {
                   onChange={(event) => setForm((prev) => ({ ...prev, storageMethod: event.target.value }))}
                   className="h-10 rounded-xl border border-gray-200 px-3 text-sm focus:border-red-500 focus:outline-none"
                   placeholder="냉장/냉동/상온"
+                />
+              </label>
+
+              <label className="grid gap-1 md:col-span-2">
+                <span className="text-xs font-bold text-gray-600">진열 위치 (피킹 위치)</span>
+                <input
+                  value={form.pickLocation}
+                  onChange={(event) => setForm((prev) => ({ ...prev, pickLocation: event.target.value }))}
+                  className="h-10 rounded-xl border border-gray-200 px-3 text-sm focus:border-red-500 focus:outline-none"
+                  placeholder="예) A-03, 냉장2열, 정육코너-좌측"
                 />
               </label>
 

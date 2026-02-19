@@ -23,6 +23,7 @@ export type Product = {
   status: ProductStatus;
   stock_qty: number;
   max_per_order: number;
+  pick_location: string | null;
 };
 
 export type Promotion = {
@@ -143,7 +144,7 @@ export type OrderCancelResponse = {
   status: string;
 };
 
-export type OrderStatus = "RECEIVED" | "PICKING" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELED";
+export type OrderStatus = "RECEIVED" | "PICKING" | "SUBSTITUTION_PENDING" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELED";
 
 export type AdminLoginResponse = {
   access_token: string;
@@ -284,6 +285,7 @@ export type AdminCreateProductRequest = {
   sale_price?: string | null;
   stock_qty?: number;
   max_per_order?: number;
+  pick_location?: string | null;
 };
 
 export type AdminUpdateProductRequest = {
@@ -301,6 +303,7 @@ export type AdminUpdateProductRequest = {
   is_visible?: boolean;
   stock_qty?: number;
   max_per_order?: number;
+  pick_location?: string | null;
 };
 
 export type AdminInventoryUpdateRequest = {
@@ -313,4 +316,36 @@ export type AdminDeleteProductResponse = {
   product_id: number;
   status: ProductStatus;
   is_visible: boolean;
+};
+
+export type AdminPickingListItem = {
+  order_id: number;
+  order_no: string;
+  order_status: OrderStatus;
+  ordered_at: string;
+  requested_slot_start: string | null;
+  order_item_id: number;
+  product_id: number;
+  product_name: string;
+  unit_label: string;
+  qty_ordered: number;
+  qty_fulfilled: number;
+  pick_location: string | null;
+};
+
+export type AdminPickingListSummary = {
+  product_id: number;
+  product_name: string;
+  unit_label: string;
+  pick_location: string | null;
+  total_qty_ordered: number;
+  order_count: number;
+};
+
+export type AdminPickingListResponse = {
+  generated_at: string;
+  order_count: number;
+  line_count: number;
+  items: AdminPickingListItem[];
+  summary: AdminPickingListSummary[];
 };

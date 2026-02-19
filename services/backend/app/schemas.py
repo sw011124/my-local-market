@@ -29,6 +29,7 @@ class ProductOut(BaseModel):
     status: ProductStatus
     stock_qty: int
     max_per_order: int
+    pick_location: str | None
 
 
 class PromotionOut(BaseModel):
@@ -174,6 +175,7 @@ class ProductCreateInput(BaseModel):
     sale_price: Decimal | None = None
     stock_qty: int = 0
     max_per_order: int = 10
+    pick_location: str | None = None
 
 
 class ProductPatchInput(BaseModel):
@@ -191,6 +193,39 @@ class ProductPatchInput(BaseModel):
     is_visible: bool | None = None
     stock_qty: int | None = Field(default=None, ge=0)
     max_per_order: int | None = Field(default=None, ge=1, le=99)
+    pick_location: str | None = None
+
+
+class PickingListItemOut(BaseModel):
+    order_id: int
+    order_no: str
+    order_status: OrderStatus
+    ordered_at: datetime
+    requested_slot_start: datetime | None
+    order_item_id: int
+    product_id: int
+    product_name: str
+    unit_label: str
+    qty_ordered: int
+    qty_fulfilled: int
+    pick_location: str | None
+
+
+class PickingListSummaryOut(BaseModel):
+    product_id: int
+    product_name: str
+    unit_label: str
+    pick_location: str | None
+    total_qty_ordered: int
+    order_count: int
+
+
+class PickingListOut(BaseModel):
+    generated_at: datetime
+    order_count: int
+    line_count: int
+    items: list[PickingListItemOut]
+    summary: list[PickingListSummaryOut]
 
 
 class InventoryUpdateInput(BaseModel):

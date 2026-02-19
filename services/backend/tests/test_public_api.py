@@ -168,11 +168,13 @@ def test_admin_product_patch_and_delete_flow() -> None:
             'sale_price': '5000',
             'stock_qty': 11,
             'max_per_order': 3,
+            'pick_location': 'A-01',
         },
     )
     assert create_resp.status_code == 200
     created = create_resp.json()
     product_id = created['id']
+    assert created['pick_location'] == 'A-01'
 
     patch_resp = client.patch(
         f'/api/v1/admin/products/{product_id}',
@@ -183,6 +185,7 @@ def test_admin_product_patch_and_delete_flow() -> None:
             'status': 'PAUSED',
             'stock_qty': 7,
             'max_per_order': 2,
+            'pick_location': 'A-02',
         },
     )
     assert patch_resp.status_code == 200
@@ -192,6 +195,7 @@ def test_admin_product_patch_and_delete_flow() -> None:
     assert patched['status'] == 'PAUSED'
     assert patched['stock_qty'] == 7
     assert patched['max_per_order'] == 2
+    assert patched['pick_location'] == 'A-02'
 
     invalid_price_resp = client.patch(
         f'/api/v1/admin/products/{product_id}',
@@ -211,3 +215,68 @@ def test_admin_product_patch_and_delete_flow() -> None:
 
     public_detail_resp = client.get(f'/api/v1/public/products/{product_id}')
     assert public_detail_resp.status_code == 404
+
+
+def test_admin_picking_list_flow() -> None:
+    login_resp = client.post(
+        '/api/v1/admin/auth/login',
+        json={'username': 'admin', 'password': 'admin1234'},
+    )
+    assert login_resp.status_code == 200
+    admin_token = login_resp.json()['access_token']
+    headers = {'X-Admin-Token': admin_token}
+
+    create_resp = client.post(
+        '/api/v1/admin/products',
+        headers=headers,
+        json={
+            'category_id': 1,
+            'name': '피킹 테스트 상품',
+            'sku': 'TEST-PICK-001',
+            'unit_label': '개',
+            'base_price': '30000',
+            'stock_qty': 50,
+            'max_per_order': 10,
+            'pick_location': 'B-02',
+        },
+    )
+    assert create_resp.status_code == 200
+    created_product = create_resp.json()
+
+    cart_resp = client.get('/api/v1/cart')
+    assert cart_resp.status_code == 200
+    session_key = cart_resp.json()['session_key']
+
+    add_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': created_product['id'], 'qty': 2},
+    )
+    assert add_resp.status_code == 200
+
+    order_resp = client.post(
+        '/api/v1/orders',
+        json={
+            'session_key': session_key,
+            'customer_name': '피킹테스터',
+            'customer_phone': '01012345678',
+            'address_line1': '시흥시 목감동',
+            'dong_code': '1535011000',
+            'allow_substitution': False,
+        },
+    )
+    assert order_resp.status_code == 200
+
+    picking_resp = client.get('/api/v1/admin/picking-list?statuses=RECEIVED,PICKING', headers=headers)
+    assert picking_resp.status_code == 200
+    picking_payload = picking_resp.json()
+    assert picking_payload['order_count'] >= 1
+    assert picking_payload['line_count'] >= 1
+    assert any(item['product_id'] == created_product['id'] for item in picking_payload['items'])
+
+    keyword_resp = client.get('/api/v1/admin/picking-list?statuses=RECEIVED,PICKING&keyword=B-02', headers=headers)
+    assert keyword_resp.status_code == 200
+    keyword_payload = keyword_resp.json()
+    assert any(item['pick_location'] == 'B-02' for item in keyword_payload['items'])
+
+    invalid_status_resp = client.get('/api/v1/admin/picking-list?statuses=INVALID_STATUS', headers=headers)
+    assert invalid_status_resp.status_code == 400

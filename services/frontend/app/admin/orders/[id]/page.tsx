@@ -14,7 +14,7 @@ import {
 } from "@/lib/market-api";
 import type { AdminRefund, AdminShortageAction, OrderResponse, OrderStatus } from "@/lib/market-types";
 
-const ORDER_STATUSES: OrderStatus[] = ["RECEIVED", "PICKING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"];
+const ORDER_STATUSES: OrderStatus[] = ["RECEIVED", "PICKING", "SUBSTITUTION_PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"];
 
 type ItemActionDraft = {
   action: AdminShortageAction;
@@ -244,6 +244,9 @@ export default function AdminOrderDetailPage() {
           <div className="flex gap-2">
             <Link href="/admin/orders" className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm font-bold">
               주문목록
+            </Link>
+            <Link href="/admin/picking" className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm font-bold">
+              피킹리스트
             </Link>
             <button
               type="button"

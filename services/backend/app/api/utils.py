@@ -23,6 +23,7 @@ def product_to_schema(product: Product) -> ProductOut:
         status=product.status,
         stock_qty=product.stock_qty,
         max_per_order=product.max_per_order,
+        pick_location=product.pick_location,
     )
 
 

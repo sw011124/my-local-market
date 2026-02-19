@@ -8,7 +8,7 @@ import { clearAdminToken, readAdminToken } from "@/lib/admin-session-client";
 import { getAdminOrders, updateAdminOrderStatus } from "@/lib/market-api";
 import type { OrderResponse, OrderStatus } from "@/lib/market-types";
 
-const ORDER_STATUSES: OrderStatus[] = ["RECEIVED", "PICKING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"];
+const ORDER_STATUSES: OrderStatus[] = ["RECEIVED", "PICKING", "SUBSTITUTION_PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"];
 
 function formatPrice(value: string): string {
   return `${new Intl.NumberFormat("ko-KR").format(Number(value))}원`;
@@ -120,6 +120,9 @@ export default function AdminOrdersPage() {
           <div className="flex gap-2">
             <Link href="/admin/products" className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm font-bold">
               상품관리
+            </Link>
+            <Link href="/admin/picking" className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm font-bold">
+              피킹리스트
             </Link>
             <Link href="/admin/content" className="rounded-xl border border-[#d8ddd3] px-3 py-2 text-sm font-bold">
               콘텐츠관리
