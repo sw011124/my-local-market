@@ -36,6 +36,10 @@ import type {
   OrderResponse,
   Product,
   ProductQuery,
+  SavedAddress,
+  SavedAddressCreateRequest,
+  SavedAddressDeleteResponse,
+  SavedAddressPatchRequest,
 } from "@/lib/market-types";
 
 const SERVER_BASE_URL =
@@ -216,6 +220,41 @@ export async function quoteCheckout(payload: CheckoutQuoteRequest): Promise<Chec
   return apiFetch<CheckoutQuoteResponse>("/checkout/quote", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getSavedAddresses(sessionKey: string): Promise<SavedAddress[]> {
+  const queryString = buildQueryString({ session_key: sessionKey });
+  return apiFetch<SavedAddress[]>(`/addresses${queryString}`);
+}
+
+export async function createSavedAddress(
+  sessionKey: string,
+  payload: SavedAddressCreateRequest,
+): Promise<SavedAddress> {
+  const queryString = buildQueryString({ session_key: sessionKey });
+  return apiFetch<SavedAddress>(`/addresses${queryString}`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateSavedAddress(
+  sessionKey: string,
+  addressId: number,
+  payload: SavedAddressPatchRequest,
+): Promise<SavedAddress> {
+  const queryString = buildQueryString({ session_key: sessionKey });
+  return apiFetch<SavedAddress>(`/addresses/${addressId}${queryString}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteSavedAddress(sessionKey: string, addressId: number): Promise<SavedAddressDeleteResponse> {
+  const queryString = buildQueryString({ session_key: sessionKey });
+  return apiFetch<SavedAddressDeleteResponse>(`/addresses/${addressId}${queryString}`, {
+    method: "DELETE",
   });
 }
 

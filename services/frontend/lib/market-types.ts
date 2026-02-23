@@ -94,6 +94,60 @@ export type CheckoutQuoteRequest = {
   requested_slot_start?: string;
 };
 
+export type SavedAddress = {
+  id: number;
+  session_key: string;
+  label: string | null;
+  recipient_name: string | null;
+  phone: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  building: string | null;
+  unit_no: string | null;
+  dong_code: string | null;
+  apartment_name: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SavedAddressCreateRequest = {
+  label?: string | null;
+  recipient_name?: string | null;
+  phone?: string | null;
+  address_line1: string;
+  address_line2?: string | null;
+  building?: string | null;
+  unit_no?: string | null;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  latitude?: number;
+  longitude?: number;
+  is_default?: boolean;
+};
+
+export type SavedAddressPatchRequest = {
+  label?: string | null;
+  recipient_name?: string | null;
+  phone?: string | null;
+  address_line1?: string;
+  address_line2?: string | null;
+  building?: string | null;
+  unit_no?: string | null;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  latitude?: number;
+  longitude?: number;
+  is_default?: boolean;
+};
+
+export type SavedAddressDeleteResponse = {
+  ok: boolean;
+  address_id: number;
+};
+
 export type CreateOrderRequest = {
   session_key: string;
   customer_name: string;

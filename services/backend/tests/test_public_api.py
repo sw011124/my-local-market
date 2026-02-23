@@ -399,3 +399,69 @@ def test_admin_delivery_policy_zone_holiday_flow() -> None:
 
     delete_holiday_resp = client.delete(f'/api/v1/admin/holidays/{holiday_id}', headers=headers)
     assert delete_holiday_resp.status_code == 200
+
+
+def test_saved_addresses_crud_flow() -> None:
+    session_key = 'session-address-test'
+
+    empty_list_resp = client.get(f'/api/v1/addresses?session_key={session_key}')
+    assert empty_list_resp.status_code == 200
+    assert empty_list_resp.json() == []
+
+    create_first_resp = client.post(
+        f'/api/v1/addresses?session_key={session_key}',
+        json={
+            'label': '집',
+            'recipient_name': '홍길동',
+            'phone': '01012345678',
+            'address_line1': '경기도 시흥시 목감동 100',
+            'address_line2': '101동 1001호',
+            'dong_code': '1535011000',
+            'is_default': True,
+        },
+    )
+    assert create_first_resp.status_code == 200
+    first = create_first_resp.json()
+    assert first['is_default'] is True
+
+    create_second_resp = client.post(
+        f'/api/v1/addresses?session_key={session_key}',
+        json={
+            'label': '회사',
+            'recipient_name': '홍길동',
+            'phone': '01012345678',
+            'address_line1': '서울시 금천구 가산동 200',
+            'address_line2': 'A동 902호',
+            'dong_code': '1154510200',
+            'is_default': False,
+        },
+    )
+    assert create_second_resp.status_code == 200
+    second = create_second_resp.json()
+    assert second['is_default'] is False
+
+    set_second_default_resp = client.patch(
+        f"/api/v1/addresses/{second['id']}?session_key={session_key}",
+        json={'is_default': True, 'label': '회사(기본)'},
+    )
+    assert set_second_default_resp.status_code == 200
+    assert set_second_default_resp.json()['is_default'] is True
+
+    list_resp = client.get(f'/api/v1/addresses?session_key={session_key}')
+    assert list_resp.status_code == 200
+    address_list = list_resp.json()
+    assert len(address_list) == 2
+    default_rows = [row for row in address_list if row['is_default']]
+    assert len(default_rows) == 1
+    assert default_rows[0]['id'] == second['id']
+
+    delete_resp = client.delete(f"/api/v1/addresses/{second['id']}?session_key={session_key}")
+    assert delete_resp.status_code == 200
+    assert delete_resp.json()['ok'] is True
+
+    remaining_resp = client.get(f'/api/v1/addresses?session_key={session_key}')
+    assert remaining_resp.status_code == 200
+    remaining = remaining_resp.json()
+    assert len(remaining) == 1
+    assert remaining[0]['id'] == first['id']
+    assert remaining[0]['is_default'] is True

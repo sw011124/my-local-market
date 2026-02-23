@@ -83,6 +83,55 @@ class CheckoutRequest(BaseModel):
     requested_slot_start: datetime | None = None
 
 
+class SavedAddressOut(BaseModel):
+    id: int
+    session_key: str
+    label: str | None
+    recipient_name: str | None
+    phone: str | None
+    address_line1: str
+    address_line2: str | None
+    building: str | None
+    unit_no: str | None
+    dong_code: str | None
+    apartment_name: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
+    is_default: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedAddressCreateInput(BaseModel):
+    label: str | None = None
+    recipient_name: str | None = None
+    phone: str | None = None
+    address_line1: str
+    address_line2: str | None = None
+    building: str | None = None
+    unit_no: str | None = None
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    is_default: bool = False
+
+
+class SavedAddressPatchInput(BaseModel):
+    label: str | None = None
+    recipient_name: str | None = None
+    phone: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    building: str | None = None
+    unit_no: str | None = None
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    is_default: bool | None = None
+
+
 class CheckoutValidateResponse(BaseModel):
     valid: bool
     errors: list[str]

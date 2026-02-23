@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import admin, cart, checkout, orders, public
+from app.api import addresses, admin, cart, checkout, orders, public
 from app.core import get_settings
 from app.services import DomainError
 
@@ -34,6 +34,7 @@ def healthz() -> dict:
 
 app.include_router(public.router, prefix=settings.api_prefix)
 app.include_router(cart.router, prefix=settings.api_prefix)
+app.include_router(addresses.router, prefix=settings.api_prefix)
 app.include_router(checkout.router, prefix=settings.api_prefix)
 app.include_router(orders.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)

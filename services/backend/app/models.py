@@ -146,6 +146,26 @@ class CartItem(TimestampMixin, Base):
     product: Mapped[Product] = relationship()
 
 
+class SavedAddress(TimestampMixin, Base):
+    __tablename__ = 'saved_addresses'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_key: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(String(60))
+    recipient_name: Mapped[str | None] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    address_line1: Mapped[str] = mapped_column(String(200), nullable=False)
+    address_line2: Mapped[str | None] = mapped_column(String(200))
+    building: Mapped[str | None] = mapped_column(String(80))
+    unit_no: Mapped[str | None] = mapped_column(String(40))
+    dong_code: Mapped[str | None] = mapped_column(String(30))
+    apartment_name: Mapped[str | None] = mapped_column(String(120))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class StorePolicy(TimestampMixin, Base):
     __tablename__ = 'store_policies'
 
