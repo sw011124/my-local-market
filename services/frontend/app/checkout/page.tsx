@@ -638,9 +638,14 @@ export default function CheckoutPage() {
     router.push("/cart");
   }
 
-  function goToAddressEditor(source: "change" | "add"): void {
-    trackEvent("address_change_click", { source });
+  function goToAddressSelector(source: "change" | "add"): void {
+    trackEvent("address_change_click", { source, route: "selector" });
     router.push("/checkout/address");
+  }
+
+  function goToNewAddressPage(source: "add" | "selector"): void {
+    trackEvent("address_change_click", { source, route: "new" });
+    router.push("/checkout/address/new");
   }
 
   function reloadCheckout(): void {
@@ -1045,14 +1050,12 @@ export default function CheckoutPage() {
                       배송지
                     </h2>
                     <p className="mt-0.5 text-xs text-gray-600">
-                      주소 추가/수정/선택은 변경 버튼에서 관리합니다.
+                      주소 선택은 변경에서, 신규 주소는 추가 버튼에서 등록합니다.
                     </p>
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      goToAddressEditor(hasDeliveryAddress ? "change" : "add")
-                    }
+                    onClick={() => goToAddressSelector("change")}
                     className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
                   >
                     변경
@@ -1099,7 +1102,7 @@ export default function CheckoutPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => goToAddressEditor("add")}
+                      onClick={() => goToNewAddressPage("add")}
                       className="mt-2 inline-flex h-11 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-semibold text-white transition hover:bg-red-600"
                     >
                       신규 배송지 추가 +
