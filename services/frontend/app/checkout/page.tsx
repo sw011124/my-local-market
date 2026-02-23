@@ -28,13 +28,10 @@ import {
 } from "@/lib/delivery-policy";
 import {
   ApiError,
-  createSavedAddress,
   createOrder,
-  deleteSavedAddress,
   getCart,
   getSavedAddresses,
   quoteCheckout,
-  updateSavedAddress,
 } from "@/lib/market-api";
 import type {
   CartItem,
@@ -42,7 +39,6 @@ import type {
   CheckoutQuoteRequest,
   CheckoutQuoteResponse,
   CreateOrderRequest,
-  SavedAddress,
 } from "@/lib/market-types";
 import { ensureMarketSessionKey } from "@/lib/session-client";
 
@@ -343,11 +339,6 @@ export default function CheckoutPage() {
   const [sessionKey, setSessionKey] = useState<string | null>(null);
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
-  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-  const [addressLabelDraft, setAddressLabelDraft] = useState("");
-  const [savingAddress, setSavingAddress] = useState(false);
-  const [deletingAddress, setDeletingAddress] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -477,30 +468,6 @@ export default function CheckoutPage() {
     selectedPaymentMethod,
   ]);
 
-  function applySavedAddress(address: SavedAddress): void {
-    setSelectedAddressId(address.id);
-    setAddressLabelDraft(address.label ?? "");
-    setForm((prev) => ({
-      ...prev,
-      customerName: address.recipient_name ?? prev.customerName,
-      customerPhone: address.phone ?? prev.customerPhone,
-      addressLine1: address.address_line1,
-      addressLine2: address.address_line2 ?? "",
-      building: address.building ?? "",
-      unitNo: address.unit_no ?? "",
-      dongCode: address.dong_code ?? prev.dongCode,
-      apartmentName: address.apartment_name ?? "",
-      latitude: address.latitude ?? "",
-      longitude: address.longitude ?? "",
-    }));
-  }
-
-  async function refreshSavedAddresses(currentSessionKey: string): Promise<SavedAddress[]> {
-    const addresses = await getSavedAddresses(currentSessionKey);
-    setSavedAddresses(addresses);
-    return addresses;
-  }
-
   useEffect(() => {
     if (!toast) {
       return;
@@ -546,7 +513,7 @@ export default function CheckoutPage() {
       setErrorMessage(null);
       try {
         const key = await ensureMarketSessionKey();
-        const [cartData, addresses] = await Promise.all([getCart(key), refreshSavedAddresses(key)]);
+        const [cartData, addresses] = await Promise.all([getCart(key), getSavedAddresses(key)]);
 
         if (!mounted) {
           return;
@@ -559,17 +526,15 @@ export default function CheckoutPage() {
 
         const defaultAddress = addresses.find((address) => address.is_default) ?? addresses[0] ?? null;
         if (defaultAddress) {
-          setSelectedAddressId(defaultAddress.id);
-          setAddressLabelDraft(defaultAddress.label ?? "");
           setForm((prev) => ({
             ...prev,
-            customerName: defaultAddress.recipient_name ?? prev.customerName,
-            customerPhone: defaultAddress.phone ?? prev.customerPhone,
+            customerName: prev.customerName || defaultAddress.recipient_name || "",
+            customerPhone: prev.customerPhone || defaultAddress.phone || "",
             addressLine1: prev.addressLine1 || defaultAddress.address_line1,
             addressLine2: prev.addressLine2 || defaultAddress.address_line2 || "",
             building: prev.building || defaultAddress.building || "",
             unitNo: prev.unitNo || defaultAddress.unit_no || "",
-            dongCode: prev.dongCode || defaultAddress.dong_code || "1535011000",
+            dongCode: defaultAddress.dong_code || prev.dongCode || "1535011000",
             apartmentName: prev.apartmentName || defaultAddress.apartment_name || "",
             latitude: prev.latitude || defaultAddress.latitude || "",
             longitude: prev.longitude || defaultAddress.longitude || "",
@@ -680,96 +645,6 @@ export default function CheckoutPage() {
 
   function reloadCheckout(): void {
     setReloadToken((prev) => prev + 1);
-  }
-
-  async function handleSaveCurrentAddress(asDefault: boolean): Promise<void> {
-    if (!sessionKey) {
-      pushToast("error", "세션 정보를 확인한 후 다시 시도해 주세요.");
-      return;
-    }
-    if (!form.addressLine1.trim()) {
-      pushToast("error", "기본 주소를 입력한 뒤 저장해 주세요.");
-      return;
-    }
-
-    setSavingAddress(true);
-    try {
-      const saved = await createSavedAddress(sessionKey, {
-        label: addressLabelDraft.trim() || null,
-        recipient_name: form.customerName.trim() || null,
-        phone: form.customerPhone.trim() || null,
-        address_line1: form.addressLine1.trim(),
-        address_line2: form.addressLine2.trim() || null,
-        building: form.building.trim() || null,
-        unit_no: form.unitNo.trim() || null,
-        dong_code: form.dongCode.trim() || null,
-        apartment_name: form.apartmentName.trim() || null,
-        latitude: parseNumber(form.latitude),
-        longitude: parseNumber(form.longitude),
-        is_default: asDefault,
-      });
-      const refreshed = await refreshSavedAddresses(sessionKey);
-      setSelectedAddressId(saved.id);
-      setAddressLabelDraft(saved.label ?? "");
-      if (asDefault) {
-        const nextDefault = refreshed.find((address) => address.is_default);
-        if (nextDefault) {
-          setSelectedAddressId(nextDefault.id);
-        }
-      }
-      pushToast("success", "주소를 저장했습니다.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "주소 저장에 실패했습니다.";
-      pushToast("error", message);
-    } finally {
-      setSavingAddress(false);
-    }
-  }
-
-  async function handleSetDefaultAddress(address: SavedAddress): Promise<void> {
-    if (!sessionKey) {
-      return;
-    }
-    try {
-      await updateSavedAddress(sessionKey, address.id, { is_default: true });
-      const refreshed = await refreshSavedAddresses(sessionKey);
-      const nextDefault = refreshed.find((item) => item.is_default);
-      if (nextDefault) {
-        setSelectedAddressId(nextDefault.id);
-      }
-      pushToast("success", "기본 배송지로 설정했습니다.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "기본 배송지 설정에 실패했습니다.";
-      pushToast("error", message);
-    }
-  }
-
-  async function handleDeleteAddress(address: SavedAddress): Promise<void> {
-    if (!sessionKey) {
-      return;
-    }
-    const confirmed = window.confirm("선택한 주소를 삭제하시겠습니까?");
-    if (!confirmed) {
-      return;
-    }
-
-    setDeletingAddress(true);
-    try {
-      await deleteSavedAddress(sessionKey, address.id);
-      const refreshed = await refreshSavedAddresses(sessionKey);
-      const nextDefault = refreshed.find((item) => item.is_default) ?? refreshed[0] ?? null;
-      if (nextDefault) {
-        applySavedAddress(nextDefault);
-      } else {
-        setSelectedAddressId(null);
-      }
-      pushToast("success", "주소를 삭제했습니다.");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "주소 삭제에 실패했습니다.";
-      pushToast("error", message);
-    } finally {
-      setDeletingAddress(false);
-    }
   }
 
   function handleToggleItemsExpanded(): void {
@@ -1170,102 +1045,19 @@ export default function CheckoutPage() {
                       배송지
                     </h2>
                     <p className="mt-0.5 text-xs text-gray-600">
-                      여러 주소를 저장하고 결제 시 원하는 주소를 선택할 수 있습니다.
+                      주소 추가/수정/선택은 변경 버튼에서 관리합니다.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        goToAddressEditor(hasDeliveryAddress ? "change" : "add")
-                      }
-                      className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
-                    >
-                      {hasDeliveryAddress ? "주소 편집" : "주소 입력"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={savingAddress || !hasDeliveryAddress}
-                      onClick={() => void handleSaveCurrentAddress(false)}
-                      className="inline-flex h-11 items-center justify-center rounded-lg bg-gray-900 px-3 text-xs font-semibold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-                    >
-                      {savingAddress ? "저장 중..." : "현재 주소 저장"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <input
-                    value={addressLabelDraft}
-                    onChange={(event) => setAddressLabelDraft(event.target.value)}
-                    placeholder="주소 라벨 (예: 집/회사)"
-                    className="h-10 min-w-[170px] rounded-lg border border-gray-200 px-3 text-xs focus:border-red-500 focus:outline-none"
-                  />
                   <button
                     type="button"
-                    disabled={savingAddress || !hasDeliveryAddress}
-                    onClick={() => void handleSaveCurrentAddress(true)}
-                    className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() =>
+                      goToAddressEditor(hasDeliveryAddress ? "change" : "add")
+                    }
+                    className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
                   >
-                    기본 주소로 저장
+                    변경
                   </button>
                 </div>
-
-                {savedAddresses.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {savedAddresses.map((address) => (
-                      <div
-                        key={address.id}
-                        className={`rounded-xl border px-3 py-2 ${
-                          selectedAddressId === address.id
-                            ? "border-red-300 bg-red-50"
-                            : "border-gray-200 bg-white"
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="text-xs font-semibold text-gray-700">
-                              {address.label || "저장된 배송지"}
-                              {address.is_default ? " · 기본" : ""}
-                            </p>
-                            <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                              {address.address_line1}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {address.address_line2 || "상세주소 없음"}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => applySavedAddress(address)}
-                              className="inline-flex h-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-2 text-[11px] font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
-                            >
-                              선택
-                            </button>
-                            {!address.is_default ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleSetDefaultAddress(address)}
-                                className="inline-flex h-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-2 text-[11px] font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
-                              >
-                                기본지정
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              disabled={deletingAddress}
-                              onClick={() => void handleDeleteAddress(address)}
-                              className="inline-flex h-8 items-center justify-center rounded-lg border border-gray-300 bg-white px-2 text-[11px] font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <div className="rounded-xl border border-gray-200 px-3 py-2">
