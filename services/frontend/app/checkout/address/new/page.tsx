@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { trackEvent } from "@/lib/analytics";
 import { createSavedAddress } from "@/lib/market-api";
@@ -105,6 +105,7 @@ export default function CheckoutAddressNewPage() {
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const canUseAddressSearch = isAddressSearchReady && !isAddressSearchLoading;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -319,27 +320,28 @@ export default function CheckoutAddressNewPage() {
           </section>
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-bold text-gray-900">배송지 주소</h2>
-              <button
-                type="button"
-                onClick={openAddressSearch}
-                disabled={isAddressSearchLoading}
-                className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-              >
-                <Search className="mr-1.5" size={14} />
-                주소 검색
-              </button>
-            </div>
+            <h2 className="text-sm font-bold text-gray-900">배송지 주소</h2>
 
             <label className="mt-3 grid gap-1 text-xs font-semibold text-gray-700">
               기본 주소
               <input
                 required
                 value={form.addressLine1}
+                readOnly={canUseAddressSearch}
+                onClick={() => {
+                  if (canUseAddressSearch) {
+                    openAddressSearch();
+                  }
+                }}
                 onChange={(event) => setField("addressLine1", event.target.value)}
-                placeholder="주소 검색 또는 직접 입력"
-                className="h-11 rounded-xl border border-gray-200 px-3 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600"
+                placeholder={
+                  canUseAddressSearch
+                    ? "기본 주소를 누르면 주소 검색이 열립니다"
+                    : "주소를 직접 입력해 주세요"
+                }
+                className={`h-11 rounded-xl border border-gray-200 px-3 text-sm focus:border-red-600 focus:outline-none focus:ring-1 focus:ring-red-600 ${
+                  canUseAddressSearch ? "cursor-pointer bg-gray-50" : ""
+                }`}
               />
             </label>
 
