@@ -385,6 +385,27 @@ class RefundOut(BaseModel):
     status: str
     processed_at: datetime
     processed_by: str | None
+    total_estimated: Decimal | None = None
+    refunded_total: Decimal | None = None
+    refundable_remaining: Decimal | None = None
+
+
+class OrderStatusLogOut(BaseModel):
+    id: int
+    order_id: int
+    from_status: str | None
+    to_status: str
+    changed_by_type: str
+    changed_by_id: str | None
+    reason: str | None
+    created_at: datetime
+
+
+class OrderRefundSummaryOut(BaseModel):
+    order_id: int
+    total_estimated: Decimal
+    refunded_total: Decimal
+    refundable_remaining: Decimal
 
 
 class AdminPromotionOut(BaseModel):

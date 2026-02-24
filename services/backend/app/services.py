@@ -31,12 +31,39 @@ from app.core import get_settings
 settings = get_settings()
 LOCAL_TZ = ZoneInfo(settings.time_zone)
 
+ALLOWED_ORDER_STATUS_TRANSITIONS: dict[OrderStatus, set[OrderStatus]] = {
+    OrderStatus.RECEIVED: {OrderStatus.PICKING, OrderStatus.CANCELED},
+    OrderStatus.PICKING: {
+        OrderStatus.SUBSTITUTION_PENDING,
+        OrderStatus.OUT_FOR_DELIVERY,
+        OrderStatus.CANCELED,
+    },
+    OrderStatus.SUBSTITUTION_PENDING: {OrderStatus.PICKING, OrderStatus.CANCELED},
+    OrderStatus.OUT_FOR_DELIVERY: {OrderStatus.DELIVERED},
+    OrderStatus.DELIVERED: set(),
+    OrderStatus.CANCELED: set(),
+}
+
 
 class DomainError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+def get_allowed_next_order_statuses(from_status: OrderStatus) -> list[OrderStatus]:
+    candidates = ALLOWED_ORDER_STATUS_TRANSITIONS.get(from_status, set())
+    return sorted(candidates, key=lambda status: status.value)
+
+
+def is_order_status_transition_allowed(
+    from_status: OrderStatus,
+    to_status: OrderStatus,
+) -> bool:
+    if from_status == to_status:
+        return True
+    return to_status in ALLOWED_ORDER_STATUS_TRANSITIONS.get(from_status, set())
 
 
 def effective_price(product: Product) -> Decimal:
@@ -372,8 +399,25 @@ def create_order(
     return order
 
 
-def update_order_status(db: Session, order: Order, to_status: OrderStatus, changed_by: str, reason: str | None) -> Order:
+def update_order_status(
+    db: Session,
+    order: Order,
+    to_status: OrderStatus,
+    changed_by: str,
+    reason: str | None,
+    changed_by_type: str = 'ADMIN',
+) -> tuple[Order, bool]:
     from_status = order.status
+    if from_status == to_status:
+        return order, False
+
+    if not is_order_status_transition_allowed(from_status, to_status):
+        allowed = [status.value for status in get_allowed_next_order_statuses(from_status)]
+        raise DomainError(
+            'INVALID_STATUS_TRANSITION',
+            f'허용되지 않은 상태 전이입니다: {from_status.value} -> {to_status.value} (allowed={allowed})',
+        )
+
     order.status = to_status
 
     now = datetime.now(timezone.utc)
@@ -388,10 +432,10 @@ def update_order_status(db: Session, order: Order, to_status: OrderStatus, chang
             order_id=order.id,
             from_status=from_status.value,
             to_status=to_status.value,
-            changed_by_type='ADMIN',
+            changed_by_type=changed_by_type,
             changed_by_id=changed_by,
             reason=reason,
         )
     )
     db.flush()
-    return order
+    return order, True

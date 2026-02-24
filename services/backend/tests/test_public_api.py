@@ -1,5 +1,6 @@
 import os
 from datetime import date, time, timedelta
+from decimal import Decimal
 
 os.environ['DATABASE_URL'] = 'sqlite:///./test_api.db'
 
@@ -465,3 +466,227 @@ def test_saved_addresses_crud_flow() -> None:
     assert len(remaining) == 1
     assert remaining[0]['id'] == first['id']
     assert remaining[0]['is_default'] is True
+
+
+def test_order_status_transition_rules_and_logs() -> None:
+    login_resp = client.post(
+        '/api/v1/admin/auth/login',
+        json={'username': 'admin', 'password': 'admin1234'},
+    )
+    assert login_resp.status_code == 200
+    admin_token = login_resp.json()['access_token']
+    headers = {'X-Admin-Token': admin_token}
+
+    create_product_resp = client.post(
+        '/api/v1/admin/products',
+        headers=headers,
+        json={
+            'category_id': 1,
+            'name': '상태전이 테스트 상품',
+            'sku': 'TEST-STATE-ORDER-001',
+            'unit_label': '개',
+            'base_price': '12000',
+            'stock_qty': 30,
+            'max_per_order': 10,
+            'pick_location': 'S-01',
+        },
+    )
+    assert create_product_resp.status_code == 200
+    product_id = create_product_resp.json()['id']
+
+    cart_resp = client.get('/api/v1/cart')
+    assert cart_resp.status_code == 200
+    session_key = cart_resp.json()['session_key']
+    add_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': product_id, 'qty': 1},
+    )
+    assert add_resp.status_code == 200
+
+    order_resp = client.post(
+        '/api/v1/orders',
+        json={
+            'session_key': session_key,
+            'customer_name': '상태테스터',
+            'customer_phone': '01011112222',
+            'address_line1': '시흥시 목감동',
+            'dong_code': '1535011000',
+            'allow_substitution': False,
+        },
+    )
+    assert order_resp.status_code == 200
+    order = order_resp.json()
+    order_id = order['id']
+
+    logs_resp = client.get(f'/api/v1/admin/orders/{order_id}/status-logs', headers=headers)
+    assert logs_resp.status_code == 200
+    logs = logs_resp.json()
+    assert len(logs) == 1
+    assert logs[0]['to_status'] == 'RECEIVED'
+
+    # Same-status update should be treated as no-op and should not create a new log.
+    noop_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'RECEIVED'},
+    )
+    assert noop_resp.status_code == 200
+    logs_after_noop_resp = client.get(f'/api/v1/admin/orders/{order_id}/status-logs', headers=headers)
+    assert logs_after_noop_resp.status_code == 200
+    assert len(logs_after_noop_resp.json()) == 1
+
+    invalid_transition_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'DELIVERED'},
+    )
+    assert invalid_transition_resp.status_code == 400
+    assert invalid_transition_resp.json()['detail']['code'] == 'INVALID_STATUS_TRANSITION'
+
+    to_picking_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'PICKING'},
+    )
+    assert to_picking_resp.status_code == 200
+
+    to_delivery_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'OUT_FOR_DELIVERY'},
+    )
+    assert to_delivery_resp.status_code == 200
+
+    to_delivered_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'DELIVERED'},
+    )
+    assert to_delivered_resp.status_code == 200
+
+    backward_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'PICKING'},
+    )
+    assert backward_resp.status_code == 400
+    assert backward_resp.json()['detail']['code'] == 'INVALID_STATUS_TRANSITION'
+
+    final_logs_resp = client.get(f'/api/v1/admin/orders/{order_id}/status-logs', headers=headers)
+    assert final_logs_resp.status_code == 200
+    final_logs = final_logs_resp.json()
+    transitions = [(row['from_status'], row['to_status']) for row in final_logs]
+    assert ('OUT_FOR_DELIVERY', 'DELIVERED') in transitions
+    assert ('PICKING', 'OUT_FOR_DELIVERY') in transitions
+    assert ('RECEIVED', 'PICKING') in transitions
+
+
+def test_cancel_restriction_shortage_reapply_and_refund_limit() -> None:
+    login_resp = client.post(
+        '/api/v1/admin/auth/login',
+        json={'username': 'admin', 'password': 'admin1234'},
+    )
+    assert login_resp.status_code == 200
+    admin_token = login_resp.json()['access_token']
+    headers = {'X-Admin-Token': admin_token}
+
+    create_product_resp = client.post(
+        '/api/v1/admin/products',
+        headers=headers,
+        json={
+            'category_id': 1,
+            'name': '환불정책 테스트 상품',
+            'sku': 'TEST-REFUND-POLICY-001',
+            'unit_label': '개',
+            'base_price': '20000',
+            'stock_qty': 30,
+            'max_per_order': 10,
+            'pick_location': 'R-01',
+        },
+    )
+    assert create_product_resp.status_code == 200
+    product_id = create_product_resp.json()['id']
+
+    cart_resp = client.get('/api/v1/cart')
+    assert cart_resp.status_code == 200
+    session_key = cart_resp.json()['session_key']
+    add_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': product_id, 'qty': 2},
+    )
+    assert add_resp.status_code == 200
+
+    order_resp = client.post(
+        '/api/v1/orders',
+        json={
+            'session_key': session_key,
+            'customer_name': '정책테스터',
+            'customer_phone': '01033334444',
+            'address_line1': '시흥시 목감동',
+            'dong_code': '1535011000',
+            'allow_substitution': True,
+        },
+    )
+    assert order_resp.status_code == 200
+    order = order_resp.json()
+    order_id = order['id']
+    order_no = order['order_no']
+    order_item_id = order['items'][0]['id']
+
+    to_picking_resp = client.patch(
+        f'/api/v1/admin/orders/{order_id}/status',
+        headers=headers,
+        json={'status': 'PICKING'},
+    )
+    assert to_picking_resp.status_code == 200
+
+    cancel_resp = client.post(
+        f'/api/v1/orders/{order_no}/cancel-requests?phone=01033334444',
+        json={'reason': '취소요청'},
+    )
+    assert cancel_resp.status_code == 400
+    assert cancel_resp.json()['detail']['code'] == 'ORDER_NOT_CANCELABLE'
+
+    shortage_resp = client.post(
+        f'/api/v1/admin/orders/{order_id}/shortage-actions',
+        headers=headers,
+        json={
+            'order_item_id': order_item_id,
+            'action': 'PARTIAL_CANCEL',
+            'fulfilled_qty': 1,
+            'reason': '재고 부족',
+        },
+    )
+    assert shortage_resp.status_code == 200
+    shortage_payload = shortage_resp.json()
+    assert shortage_payload.get('summary') is not None
+
+    shortage_reapply_resp = client.post(
+        f'/api/v1/admin/orders/{order_id}/shortage-actions',
+        headers=headers,
+        json={
+            'order_item_id': order_item_id,
+            'action': 'OUT_OF_STOCK',
+            'fulfilled_qty': 0,
+            'reason': '중복 처리',
+        },
+    )
+    assert shortage_reapply_resp.status_code == 400
+    assert shortage_reapply_resp.json()['detail']['code'] == 'ITEM_ALREADY_PROCESSED'
+
+    refund_summary_resp = client.get(f'/api/v1/admin/orders/{order_id}/refund-summary', headers=headers)
+    assert refund_summary_resp.status_code == 200
+    refund_summary = refund_summary_resp.json()
+    assert Decimal(refund_summary['refundable_remaining']) >= Decimal('0')
+
+    over_refund_resp = client.post(
+        f'/api/v1/admin/orders/{order_id}/refunds',
+        headers=headers,
+        json={
+            'amount': '99999999',
+            'reason': '과환불 테스트',
+            'method': 'COD_ADJUSTMENT',
+        },
+    )
+    assert over_refund_resp.status_code == 400
+    assert over_refund_resp.json()['detail']['code'] == 'REFUND_LIMIT_EXCEEDED'

@@ -231,6 +231,9 @@ export type AdminRefund = {
   status: string;
   processed_at: string;
   processed_by: string | null;
+  total_estimated?: string | null;
+  refunded_total?: string | null;
+  refundable_remaining?: string | null;
 };
 
 export type AdminRefundCreateRequest = {
@@ -242,6 +245,25 @@ export type AdminRefundCreateRequest = {
 export type AdminShortageActionResponse = {
   order: OrderResponse;
   refund: AdminRefund | null;
+  summary?: AdminOrderRefundSummary;
+};
+
+export type AdminOrderStatusLog = {
+  id: number;
+  order_id: number;
+  from_status: string | null;
+  to_status: string;
+  changed_by_type: string;
+  changed_by_id: string | null;
+  reason: string | null;
+  created_at: string;
+};
+
+export type AdminOrderRefundSummary = {
+  order_id: number;
+  total_estimated: string;
+  refunded_total: string;
+  refundable_remaining: string;
 };
 
 export type AdminPromotion = {

@@ -45,11 +45,25 @@ npm run db:down     # 전체 종료
 ## 관리자 고급 API
 - 부분품절/대체 처리: `POST /api/v1/admin/orders/{id}/shortage-actions`
 - 환불 처리/조회: `POST /api/v1/admin/orders/{id}/refunds`, `GET /api/v1/admin/orders/{id}/refunds`
+- 환불 요약: `GET /api/v1/admin/orders/{id}/refund-summary`
+- 상태 이력 조회: `GET /api/v1/admin/orders/{id}/status-logs`
 - 행사 관리: `GET/POST/PATCH /api/v1/admin/promotions`
 - 배너 관리: `GET/POST/PATCH /api/v1/admin/banners`
 - 공지 관리: `GET/POST/PATCH /api/v1/admin/notices`
 - 정책 관리: `GET/PATCH /api/v1/admin/policies`
 - 상품 관리: `GET/POST /api/v1/admin/products`, `PATCH /api/v1/admin/products/{id}/inventory`
+
+## 주문 운영 정책(2026-02 업데이트)
+- 상태 전이 규칙:
+  - `RECEIVED -> PICKING | CANCELED`
+  - `PICKING -> SUBSTITUTION_PENDING | OUT_FOR_DELIVERY | CANCELED`
+  - `SUBSTITUTION_PENDING -> PICKING | CANCELED`
+  - `OUT_FOR_DELIVERY -> DELIVERED`
+  - `DELIVERED`, `CANCELED`는 종결 상태
+- 동일 상태 재요청은 no-op 처리(상태 로그 추가 생성 안 함)
+- 고객 취소는 `RECEIVED` 상태 + `cancelable_until` 이내에서만 허용
+- 품절 처리(`shortage-actions`)는 이미 처리 완료된 아이템(`SUBSTITUTED`, `PARTIAL_CANCELED`, `OUT_OF_STOCK`) 재처리 불가
+- 환불은 누적 금액이 주문 예상총액(`total_estimated`)을 초과할 수 없음 (`REFUND_LIMIT_EXCEEDED`)
 
 ## Next 화면 범위
 - 고객: `/`, `/products`, `/products/[id]`, `/cart`, `/checkout`, `/orders/lookup`, `/orders/[orderNo]`

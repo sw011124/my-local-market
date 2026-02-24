@@ -9,12 +9,29 @@ import {
   applyAdminShortageAction,
   createAdminRefund,
   getAdminOrder,
+  getAdminOrderRefundSummary,
+  getAdminOrderStatusLogs,
   getAdminRefunds,
   updateAdminOrderStatus,
 } from "@/lib/market-api";
-import type { AdminRefund, AdminShortageAction, OrderResponse, OrderStatus } from "@/lib/market-types";
+import type {
+  AdminOrderRefundSummary,
+  AdminOrderStatusLog,
+  AdminRefund,
+  AdminShortageAction,
+  OrderResponse,
+  OrderStatus,
+} from "@/lib/market-types";
 
 const ORDER_STATUSES: OrderStatus[] = ["RECEIVED", "PICKING", "SUBSTITUTION_PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELED"];
+const ALLOWED_STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  RECEIVED: ["PICKING", "CANCELED"],
+  PICKING: ["SUBSTITUTION_PENDING", "OUT_FOR_DELIVERY", "CANCELED"],
+  SUBSTITUTION_PENDING: ["PICKING", "CANCELED"],
+  OUT_FOR_DELIVERY: ["DELIVERED"],
+  DELIVERED: [],
+  CANCELED: [],
+};
 
 type ItemActionDraft = {
   action: AdminShortageAction;
@@ -37,6 +54,10 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [refunds, setRefunds] = useState<AdminRefund[]>([]);
+  const [statusLogs, setStatusLogs] = useState<AdminOrderStatusLog[]>([]);
+  const [refundSummary, setRefundSummary] = useState<AdminOrderRefundSummary | null>(
+    null,
+  );
   const [statusDraft, setStatusDraft] = useState<OrderStatus>("RECEIVED");
   const [statusReason, setStatusReason] = useState("");
   const [itemDrafts, setItemDrafts] = useState<Record<number, ItemActionDraft>>({});
@@ -46,6 +67,13 @@ export default function AdminOrderDetailPage() {
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const canRender = useMemo(() => Number.isInteger(orderId) && orderId > 0, [orderId]);
+  const allowedStatusOptions = useMemo(() => {
+    if (!order) {
+      return [];
+    }
+    return [order.status as OrderStatus, ...ALLOWED_STATUS_TRANSITIONS[order.status as OrderStatus]];
+  }, [order]);
+  const refundableRemaining = useMemo(() => Number(refundSummary?.refundable_remaining ?? "0"), [refundSummary?.refundable_remaining]);
 
   useEffect(() => {
     const savedToken = readAdminToken();
@@ -67,12 +95,19 @@ export default function AdminOrderDetailPage() {
       setLoading(true);
       setErrorMessage(null);
       try {
-        const [orderResult, refundResult] = await Promise.all([getAdminOrder(adminToken, orderId), getAdminRefunds(adminToken, orderId)]);
+        const [orderResult, refundResult, statusLogResult, refundSummaryResult] = await Promise.all([
+          getAdminOrder(adminToken, orderId),
+          getAdminRefunds(adminToken, orderId),
+          getAdminOrderStatusLogs(adminToken, orderId),
+          getAdminOrderRefundSummary(adminToken, orderId),
+        ]);
         if (!mounted) {
           return;
         }
         setOrder(orderResult);
         setRefunds(refundResult);
+        setStatusLogs(statusLogResult);
+        setRefundSummary(refundSummaryResult);
 
         const parsedStatus = ORDER_STATUSES.find((status) => status === orderResult.status) ?? "RECEIVED";
         setStatusDraft(parsedStatus);
@@ -119,15 +154,26 @@ export default function AdminOrderDetailPage() {
     if (!token || !canRender) {
       return;
     }
-    const [orderResult, refundResult] = await Promise.all([getAdminOrder(token, orderId), getAdminRefunds(token, orderId)]);
+    const [orderResult, refundResult, statusLogResult, refundSummaryResult] = await Promise.all([
+      getAdminOrder(token, orderId),
+      getAdminRefunds(token, orderId),
+      getAdminOrderStatusLogs(token, orderId),
+      getAdminOrderRefundSummary(token, orderId),
+    ]);
     setOrder(orderResult);
     setRefunds(refundResult);
+    setStatusLogs(statusLogResult);
+    setRefundSummary(refundSummaryResult);
     const parsedStatus = ORDER_STATUSES.find((status) => status === orderResult.status) ?? "RECEIVED";
     setStatusDraft(parsedStatus);
   }
 
   async function applyStatusChange(): Promise<void> {
     if (!token || !order) {
+      return;
+    }
+    if (!allowedStatusOptions.includes(statusDraft)) {
+      setErrorMessage("현재 상태에서 허용되지 않은 상태 변경입니다.");
       return;
     }
     try {
@@ -203,6 +249,16 @@ export default function AdminOrderDetailPage() {
       return;
     }
 
+    const amountNumber = Number(normalizedAmount);
+    if (Number.isNaN(amountNumber) || amountNumber <= 0) {
+      setErrorMessage("환불 금액은 0보다 큰 숫자여야 합니다.");
+      return;
+    }
+    if (refundSummary && amountNumber > refundableRemaining) {
+      setErrorMessage("환불 가능 잔액을 초과했습니다.");
+      return;
+    }
+
     try {
       await createAdminRefund(token, order.id, {
         amount: normalizedAmount,
@@ -272,6 +328,13 @@ export default function AdminOrderDetailPage() {
               </p>
               <p className="text-sm">예상총액: {formatPrice(order.total_estimated)}</p>
               {order.total_final && <p className="text-sm font-semibold">최종금액: {formatPrice(order.total_final)}</p>}
+              {refundSummary && (
+                <div className="mt-2 grid gap-1 text-sm md:grid-cols-3">
+                  <p>누적 환불: {formatPrice(refundSummary.refunded_total)}</p>
+                  <p className="font-semibold text-[#166847]">환불 가능 잔액: {formatPrice(refundSummary.refundable_remaining)}</p>
+                  <p>환불 후 최종금액: {formatPrice(String(Math.max(0, Number(order.total_estimated) - Number(refundSummary.refunded_total))))}</p>
+                </div>
+              )}
 
               <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_auto]">
                 <select
@@ -280,7 +343,11 @@ export default function AdminOrderDetailPage() {
                   className="rounded-lg border border-[#d8ddd3] px-2 py-1 text-sm"
                 >
                   {ORDER_STATUSES.map((status) => (
-                    <option key={status} value={status}>
+                    <option
+                      key={status}
+                      value={status}
+                      disabled={!allowedStatusOptions.includes(status)}
+                    >
                       {status}
                     </option>
                   ))}
@@ -427,6 +494,11 @@ export default function AdminOrderDetailPage() {
                   환불 등록
                 </button>
               </div>
+              {refundSummary && (
+                <p className="mt-2 text-xs text-[#60756c]">
+                  환불 가능 잔액: {formatPrice(refundSummary.refundable_remaining)}
+                </p>
+              )}
             </section>
 
             <section className="mt-4 rounded-2xl border border-[#d8ddd3] p-4">
@@ -456,6 +528,43 @@ export default function AdminOrderDetailPage() {
                       <tr>
                         <td className="px-2 py-3 text-[#60756c]" colSpan={5}>
                           환불 이력이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="mt-4 rounded-2xl border border-[#d8ddd3] p-4">
+              <h2 className="text-base font-black">상태 변경 이력</h2>
+              <div className="mt-2 overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-[#d8ddd3] text-left">
+                      <th className="px-2 py-2">시간</th>
+                      <th className="px-2 py-2">변경</th>
+                      <th className="px-2 py-2">주체</th>
+                      <th className="px-2 py-2">사유</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statusLogs.map((log) => (
+                      <tr key={log.id} className="border-b border-[#eef1eb]">
+                        <td className="px-2 py-2">{new Date(log.created_at).toLocaleString("ko-KR")}</td>
+                        <td className="px-2 py-2">
+                          {(log.from_status ?? "-")} → {log.to_status}
+                        </td>
+                        <td className="px-2 py-2">
+                          {log.changed_by_type} / {log.changed_by_id ?? "-"}
+                        </td>
+                        <td className="px-2 py-2">{log.reason ?? "-"}</td>
+                      </tr>
+                    ))}
+                    {!statusLogs.length && (
+                      <tr>
+                        <td className="px-2 py-3 text-[#60756c]" colSpan={4}>
+                          상태 변경 이력이 없습니다.
                         </td>
                       </tr>
                     )}

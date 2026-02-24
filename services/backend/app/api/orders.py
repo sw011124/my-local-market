@@ -8,7 +8,7 @@ from app.api.utils import order_to_schema
 from app.db import get_db
 from app.models import CancellationRequest, Order, OrderStatus
 from app.schemas import CancelRequestInput, OrderCreateRequest, OrderOut
-from app.services import create_order, get_or_create_cart, validate_checkout
+from app.services import create_order, get_or_create_cart, update_order_status, validate_checkout
 
 router = APIRouter(prefix='/orders', tags=['orders'])
 
@@ -81,7 +81,14 @@ def cancel_order(order_no: str, payload: CancelRequestInput, phone: str = Query(
     if order.cancelable_until and datetime.now(timezone.utc) > order.cancelable_until:
         raise HTTPException(status_code=400, detail={'code': 'ORDER_NOT_CANCELABLE', 'message': '취소 가능 시간이 지났습니다.'})
 
-    order.status = OrderStatus.CANCELED
+    update_order_status(
+        db,
+        order,
+        OrderStatus.CANCELED,
+        changed_by='CUSTOMER_SELF',
+        reason=payload.reason,
+        changed_by_type='CUSTOMER',
+    )
     db.add(
         CancellationRequest(
             order_id=order.id,

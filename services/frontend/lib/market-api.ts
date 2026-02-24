@@ -16,6 +16,8 @@ import type {
   AdminLoginResponse,
   AdminNotice,
   AdminNoticeCreateRequest,
+  AdminOrderRefundSummary,
+  AdminOrderStatusLog,
   AdminOrderStatusUpdateRequest,
   AdminPolicy,
   AdminPolicyPatchRequest,
@@ -329,6 +331,24 @@ export async function applyAdminShortageAction(
 
 export async function getAdminRefunds(adminToken: string, orderId: number): Promise<AdminRefund[]> {
   return apiFetch<AdminRefund[]>(`/admin/orders/${orderId}/refunds`, {
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function getAdminOrderStatusLogs(
+  adminToken: string,
+  orderId: number,
+): Promise<AdminOrderStatusLog[]> {
+  return apiFetch<AdminOrderStatusLog[]>(`/admin/orders/${orderId}/status-logs`, {
+    headers: resolveAuthHeaders(adminToken),
+  });
+}
+
+export async function getAdminOrderRefundSummary(
+  adminToken: string,
+  orderId: number,
+): Promise<AdminOrderRefundSummary> {
+  return apiFetch<AdminOrderRefundSummary>(`/admin/orders/${orderId}/refund-summary`, {
     headers: resolveAuthHeaders(adminToken),
   });
 }

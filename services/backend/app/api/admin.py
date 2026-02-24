@@ -17,6 +17,7 @@ from app.models import (
     Order,
     OrderItem,
     OrderStatus,
+    OrderStatusLog,
     Product,
     ProductStatus,
     Promotion,
@@ -53,9 +54,11 @@ from app.schemas import (
     PromotionUpsertInput,
     RefundCreateInput,
     RefundOut,
+    OrderRefundSummaryOut,
+    OrderStatusLogOut,
     ShortageActionInput,
 )
-from app.services import effective_price, get_or_create_policy, require_admin, to_decimal, update_order_status
+from app.services import DomainError, effective_price, get_or_create_policy, require_admin, to_decimal, update_order_status
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 
@@ -85,7 +88,15 @@ def require_admin_token(
     return admin
 
 
-def add_audit(db: Session, admin: AdminUser, entity_type: str, entity_id: str, action: str, after_json: dict | None = None) -> None:
+def add_audit(
+    db: Session,
+    admin: AdminUser,
+    entity_type: str,
+    entity_id: str,
+    action: str,
+    after_json: dict | None = None,
+    before_json: dict | None = None,
+) -> None:
     db.add(
         AuditLog(
             actor_type='ADMIN',
@@ -93,6 +104,7 @@ def add_audit(db: Session, admin: AdminUser, entity_type: str, entity_id: str, a
             entity_type=entity_type,
             entity_id=entity_id,
             action=action,
+            before_json=before_json,
             after_json=after_json,
         )
     )
@@ -115,7 +127,32 @@ def refresh_order_final_total(db: Session, order: Order) -> None:
     order.total_final = recalculated
 
 
-def refund_to_schema(refund: Refund) -> RefundOut:
+def get_order_refund_summary(order: Order, refunded_total: Decimal) -> OrderRefundSummaryOut:
+    total_estimated = to_decimal(order.total_estimated)
+    refundable_remaining = total_estimated - refunded_total
+    if refundable_remaining < Decimal('0'):
+        refundable_remaining = Decimal('0')
+    return OrderRefundSummaryOut(
+        order_id=order.id,
+        total_estimated=total_estimated,
+        refunded_total=refunded_total,
+        refundable_remaining=refundable_remaining,
+    )
+
+
+def validate_refund_limit(order: Order, current_refunded_total: Decimal, pending_refund_amount: Decimal) -> None:
+    summary = get_order_refund_summary(order, current_refunded_total)
+    if pending_refund_amount > summary.refundable_remaining:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                'code': 'REFUND_LIMIT_EXCEEDED',
+                'message': f'환불 가능 잔액({summary.refundable_remaining})을 초과했습니다.',
+            },
+        )
+
+
+def refund_to_schema(refund: Refund, summary: OrderRefundSummaryOut | None = None) -> RefundOut:
     return RefundOut(
         id=refund.id,
         order_id=refund.order_id,
@@ -125,6 +162,22 @@ def refund_to_schema(refund: Refund) -> RefundOut:
         status=refund.status,
         processed_at=refund.processed_at,
         processed_by=refund.processed_by,
+        total_estimated=summary.total_estimated if summary else None,
+        refunded_total=summary.refunded_total if summary else None,
+        refundable_remaining=summary.refundable_remaining if summary else None,
+    )
+
+
+def status_log_to_schema(log: OrderStatusLog) -> OrderStatusLogOut:
+    return OrderStatusLogOut(
+        id=log.id,
+        order_id=log.order_id,
+        from_status=log.from_status,
+        to_status=log.to_status,
+        changed_by_type=log.changed_by_type,
+        changed_by_id=log.changed_by_id,
+        reason=log.reason,
+        created_at=log.created_at,
     )
 
 
@@ -456,8 +509,33 @@ def admin_update_order_status(
     if not order:
         raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
 
-    update_order_status(db, order, payload.status, changed_by=admin.username, reason=payload.reason)
-    add_audit(db, admin, 'ORDER', str(order.id), 'ORDER_STATUS_UPDATED', {'status': payload.status.value})
+    before_status = order.status
+    try:
+        _, changed = update_order_status(
+            db,
+            order,
+            payload.status,
+            changed_by=admin.username,
+            reason=payload.reason,
+        )
+    except DomainError as exc:
+        if exc.code == 'INVALID_STATUS_TRANSITION':
+            raise HTTPException(
+                status_code=400,
+                detail={'code': exc.code, 'message': exc.message},
+            )
+        raise
+
+    if changed:
+        add_audit(
+            db,
+            admin,
+            'ORDER',
+            str(order.id),
+            'ORDER_STATUS_UPDATED',
+            before_json={'status': before_status.value},
+            after_json={'status': payload.status.value},
+        )
 
     db.commit()
     db.refresh(order)
@@ -481,6 +559,19 @@ def admin_shortage_action(
     item = db.get(OrderItem, payload.order_item_id)
     if not item or item.order_id != order_id:
         raise HTTPException(status_code=404, detail={'code': 'ORDER_ITEM_NOT_FOUND', 'message': '주문 상품을 찾을 수 없습니다.'})
+
+    if item.item_status in {'SUBSTITUTED', 'PARTIAL_CANCELED', 'OUT_OF_STOCK'}:
+        raise HTTPException(
+            status_code=400,
+            detail={'code': 'ITEM_ALREADY_PROCESSED', 'message': '이미 처리 완료된 주문 상품입니다.'},
+        )
+
+    before_state = {
+        'item_status': item.item_status,
+        'qty_fulfilled': item.qty_fulfilled,
+        'line_final': str(item.line_final) if item.line_final is not None else None,
+        'substitution_product_id': item.substitution_product_id,
+    }
 
     refund_amount = Decimal('0')
     action = payload.action
@@ -526,6 +617,10 @@ def admin_shortage_action(
 
         refund_amount = to_decimal(item.line_estimated) - line_final
 
+    current_refunded_total = sum_approved_refunds(db, order.id)
+    if refund_amount > Decimal('0'):
+        validate_refund_limit(order, current_refunded_total, refund_amount)
+
     created_refund = None
     if refund_amount > Decimal('0'):
         created_refund = Refund(
@@ -539,19 +634,29 @@ def admin_shortage_action(
         db.add(created_refund)
 
     if order.status == OrderStatus.RECEIVED:
-        order.status = OrderStatus.PICKING
+        update_order_status(
+            db,
+            order,
+            OrderStatus.PICKING,
+            changed_by=admin.username,
+            reason='SHORTAGE_ACTION',
+        )
 
     refresh_order_final_total(db, order)
+    refunded_total_after = sum_approved_refunds(db, order.id)
+    summary_after = get_order_refund_summary(order, refunded_total_after)
     add_audit(
         db,
         admin,
         'ORDER_ITEM',
         str(item.id),
         f'SHORTAGE_{action}',
-        {
+        before_json=before_state,
+        after_json={
             'order_id': order.id,
             'item_status': item.item_status,
             'refund_amount': str(refund_amount),
+            'refundable_remaining': str(summary_after.refundable_remaining),
         },
     )
 
@@ -562,8 +667,47 @@ def admin_shortage_action(
 
     return {
         'order': order_to_schema(order),
-        'refund': refund_to_schema(created_refund) if created_refund else None,
+        'refund': refund_to_schema(created_refund, summary_after) if created_refund else None,
+        'summary': summary_after,
     }
+
+
+@router.get('/orders/{order_id}/status-logs', response_model=list[OrderStatusLogOut])
+def admin_get_order_status_logs(
+    order_id: int,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_token(db, x_admin_token)
+
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
+
+    rows = list(
+        db.scalars(
+            select(OrderStatusLog)
+            .where(OrderStatusLog.order_id == order_id)
+            .order_by(OrderStatusLog.created_at.desc(), OrderStatusLog.id.desc())
+        )
+    )
+    return [status_log_to_schema(row) for row in rows]
+
+
+@router.get('/orders/{order_id}/refund-summary', response_model=OrderRefundSummaryOut)
+def admin_get_refund_summary(
+    order_id: int,
+    x_admin_token: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    require_admin_token(db, x_admin_token)
+
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
+
+    refunded_total = sum_approved_refunds(db, order.id)
+    return get_order_refund_summary(order, refunded_total)
 
 
 @router.get('/orders/{order_id}/refunds', response_model=list[RefundOut])
@@ -574,12 +718,18 @@ def admin_get_refunds(
 ):
     require_admin_token(db, x_admin_token)
 
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
+
+    refunded_total = sum_approved_refunds(db, order.id)
+    summary = get_order_refund_summary(order, refunded_total)
     rows = list(
         db.scalars(
             select(Refund).where(Refund.order_id == order_id).order_by(Refund.processed_at.desc(), Refund.id.desc())
         )
     )
-    return [refund_to_schema(row) for row in rows]
+    return [refund_to_schema(row, summary) for row in rows]
 
 
 @router.post('/orders/{order_id}/refunds', response_model=RefundOut)
@@ -595,6 +745,9 @@ def admin_create_refund(
     if not order:
         raise HTTPException(status_code=404, detail={'code': 'ORDER_NOT_FOUND', 'message': '주문을 찾을 수 없습니다.'})
 
+    refunded_before = sum_approved_refunds(db, order.id)
+    validate_refund_limit(order, refunded_before, to_decimal(payload.amount))
+
     refund = Refund(
         order_id=order_id,
         amount=payload.amount,
@@ -606,12 +759,22 @@ def admin_create_refund(
     db.add(refund)
 
     refresh_order_final_total(db, order)
-    add_audit(db, admin, 'ORDER', str(order.id), 'REFUND_CREATED', {'amount': str(payload.amount), 'reason': payload.reason})
+    add_audit(
+        db,
+        admin,
+        'ORDER',
+        str(order.id),
+        'REFUND_CREATED',
+        before_json={'refunded_total': str(refunded_before)},
+        after_json={'amount': str(payload.amount), 'reason': payload.reason},
+    )
 
     db.commit()
     db.refresh(refund)
+    refunded_total = sum_approved_refunds(db, order.id)
+    summary = get_order_refund_summary(order, refunded_total)
 
-    return refund_to_schema(refund)
+    return refund_to_schema(refund, summary)
 
 
 @router.get('/products', response_model=list[ProductOut])
