@@ -122,14 +122,71 @@ class PromotionProduct(Base):
     is_featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class User(TimestampMixin, Base):
+    __tablename__ = 'users'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    refresh_tokens: Mapped[list['UserRefreshToken']] = relationship(
+        back_populates='user',
+        cascade='all, delete-orphan',
+    )
+    addresses: Mapped[list['UserAddress']] = relationship(
+        back_populates='user',
+        cascade='all, delete-orphan',
+    )
+
+
+class UserRefreshToken(Base):
+    __tablename__ = 'user_refresh_tokens'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    user: Mapped[User] = relationship(back_populates='refresh_tokens')
+
+
+class UserAddress(TimestampMixin, Base):
+    __tablename__ = 'user_addresses'
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    label: Mapped[str | None] = mapped_column(String(60))
+    recipient_name: Mapped[str | None] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(String(20))
+    address_line1: Mapped[str] = mapped_column(String(200), nullable=False)
+    address_line2: Mapped[str | None] = mapped_column(String(200))
+    building: Mapped[str | None] = mapped_column(String(80))
+    unit_no: Mapped[str | None] = mapped_column(String(40))
+    dong_code: Mapped[str | None] = mapped_column(String(30))
+    apartment_name: Mapped[str | None] = mapped_column(String(120))
+    latitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    longitude: Mapped[Decimal | None] = mapped_column(Numeric(10, 7))
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(back_populates='addresses')
+
+
 class Cart(TimestampMixin, Base):
     __tablename__ = 'carts'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), index=True)
     customer_phone: Mapped[str | None] = mapped_column(String(20))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    user: Mapped[User | None] = relationship()
     items: Mapped[list['CartItem']] = relationship(back_populates='cart', cascade='all, delete-orphan')
 
 
@@ -209,6 +266,8 @@ class Order(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_no: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey('users.id', ondelete='SET NULL'), index=True)
+    order_source: Mapped[str] = mapped_column(String(20), nullable=False, default='GUEST')
     customer_name: Mapped[str] = mapped_column(String(100), nullable=False)
     customer_phone: Mapped[str] = mapped_column(String(20), nullable=False)
     phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -232,6 +291,7 @@ class Order(TimestampMixin, Base):
     picked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    user: Mapped[User | None] = relationship()
     items: Mapped[list['OrderItem']] = relationship(back_populates='order', cascade='all, delete-orphan')
 
 

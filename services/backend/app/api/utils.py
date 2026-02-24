@@ -55,6 +55,8 @@ def order_to_schema(order: Order) -> OrderOut:
         id=order.id,
         order_no=order.order_no,
         status=order.status,
+        user_id=order.user_id,
+        order_source=order.order_source,
         customer_name=order.customer_name,
         customer_phone=order.customer_phone,
         subtotal_estimated=to_decimal(order.subtotal_estimated),

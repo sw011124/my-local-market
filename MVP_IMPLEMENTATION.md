@@ -11,7 +11,7 @@
 - 루트 구조는 `services/frontend`, `services/backend` 기준으로 통합
 
 ## 기본 정책 반영
-- 계정: 비회원 주문 + 주문번호/휴대폰 조회
+- 계정: 비회원 주문 + 간편 회원(전화번호/비밀번호) 병행
 - 배송권역: 하이브리드(동/아파트 + 반경)
 - 운영시간: 09:00~21:00
 - 당일마감: 19:00
@@ -40,6 +40,8 @@ npm run db:down     # 전체 종료
 
 ## 핵심 API
 - 고객: `/api/v1/public/*`, `/api/v1/cart`, `/api/v1/checkout/*`, `/api/v1/orders/*`
+- 회원 인증: `/api/v1/auth/signup`, `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout`, `/api/v1/auth/me`
+- 회원 전용: `/api/v1/me/addresses`, `/api/v1/me/orders/*`
 - 관리자: `/api/v1/admin/auth/login`, `/api/v1/admin/orders`, `/api/v1/admin/orders/{id}/status`
 
 ## 관리자 고급 API

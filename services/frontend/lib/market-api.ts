@@ -42,6 +42,15 @@ import type {
   SavedAddressCreateRequest,
   SavedAddressDeleteResponse,
   SavedAddressPatchRequest,
+  UserAddress,
+  UserAddressCreateRequest,
+  UserAddressPatchRequest,
+  UserAuthResponse,
+  UserLoginRequest,
+  UserLogoutRequest,
+  UserMe,
+  UserRefreshRequest,
+  UserSignupRequest,
 } from "@/lib/market-types";
 
 const SERVER_BASE_URL =
@@ -170,6 +179,15 @@ function resolveAuthHeaders(adminToken?: string): HeadersInit | undefined {
   };
 }
 
+function resolveUserAuthHeaders(accessToken?: string): HeadersInit | undefined {
+  if (!accessToken) {
+    return undefined;
+  }
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  };
+}
+
 export async function getHomeData(): Promise<HomeResponse> {
   return apiFetch<HomeResponse>("/public/home");
 }
@@ -190,37 +208,60 @@ export async function getProduct(productId: number): Promise<Product> {
   return apiFetch<Product>(`/public/products/${productId}`);
 }
 
-export async function getCart(sessionKey?: string): Promise<CartResponse> {
+export async function getCart(sessionKey?: string, accessToken?: string): Promise<CartResponse> {
   const queryString = buildQueryString({ session_key: sessionKey });
-  return apiFetch<CartResponse>(`/cart${queryString}`);
+  return apiFetch<CartResponse>(`/cart${queryString}`, {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
 }
 
-export async function addCartItem(sessionKey: string, productId: number, qty: number): Promise<CartResponse> {
+export async function addCartItem(
+  sessionKey: string,
+  productId: number,
+  qty: number,
+  accessToken?: string,
+): Promise<CartResponse> {
   const queryString = buildQueryString({ session_key: sessionKey });
   return apiFetch<CartResponse>(`/cart/items${queryString}`, {
     method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
     body: JSON.stringify({ product_id: productId, qty }),
   });
 }
 
-export async function updateCartItem(sessionKey: string, itemId: number, qty: number): Promise<CartResponse> {
+export async function updateCartItem(
+  sessionKey: string,
+  itemId: number,
+  qty: number,
+  accessToken?: string,
+): Promise<CartResponse> {
   const queryString = buildQueryString({ session_key: sessionKey });
   return apiFetch<CartResponse>(`/cart/items/${itemId}${queryString}`, {
     method: "PATCH",
+    headers: resolveUserAuthHeaders(accessToken),
     body: JSON.stringify({ qty }),
   });
 }
 
-export async function deleteCartItem(sessionKey: string, itemId: number): Promise<CartResponse> {
+export async function deleteCartItem(
+  sessionKey: string,
+  itemId: number,
+  accessToken?: string,
+): Promise<CartResponse> {
   const queryString = buildQueryString({ session_key: sessionKey });
   return apiFetch<CartResponse>(`/cart/items/${itemId}${queryString}`, {
     method: "DELETE",
+    headers: resolveUserAuthHeaders(accessToken),
   });
 }
 
-export async function quoteCheckout(payload: CheckoutQuoteRequest): Promise<CheckoutQuoteResponse> {
+export async function quoteCheckout(
+  payload: CheckoutQuoteRequest,
+  accessToken?: string,
+): Promise<CheckoutQuoteResponse> {
   return apiFetch<CheckoutQuoteResponse>("/checkout/quote", {
     method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
     body: JSON.stringify(payload),
   });
 }
@@ -260,27 +301,143 @@ export async function deleteSavedAddress(sessionKey: string, addressId: number):
   });
 }
 
-export async function createOrder(payload: CreateOrderRequest): Promise<OrderResponse> {
+export async function createOrder(payload: CreateOrderRequest, accessToken?: string): Promise<OrderResponse> {
   return apiFetch<OrderResponse>("/orders", {
+    method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function lookupOrder(
+  orderNo: string,
+  phone: string | undefined,
+  accessToken?: string,
+): Promise<OrderResponse> {
+  const queryString = buildQueryString({ order_no: orderNo, phone });
+  return apiFetch<OrderResponse>(`/orders/lookup${queryString}`, {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function getOrder(
+  orderNo: string,
+  phone: string | undefined,
+  accessToken?: string,
+): Promise<OrderResponse> {
+  const queryString = buildQueryString({ phone });
+  return apiFetch<OrderResponse>(`/orders/${orderNo}${queryString}`, {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function cancelOrder(
+  orderNo: string,
+  phone: string | undefined,
+  reason: string,
+  accessToken?: string,
+): Promise<OrderCancelResponse> {
+  const queryString = buildQueryString({ phone });
+  return apiFetch<OrderCancelResponse>(`/orders/${orderNo}/cancel-requests${queryString}`, {
+    method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function signupUser(payload: UserSignupRequest): Promise<UserAuthResponse> {
+  return apiFetch<UserAuthResponse>("/auth/signup", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function lookupOrder(orderNo: string, phone: string): Promise<OrderResponse> {
-  const queryString = buildQueryString({ order_no: orderNo, phone });
-  return apiFetch<OrderResponse>(`/orders/lookup${queryString}`);
-}
-
-export async function getOrder(orderNo: string, phone: string): Promise<OrderResponse> {
-  const queryString = buildQueryString({ phone });
-  return apiFetch<OrderResponse>(`/orders/${orderNo}${queryString}`);
-}
-
-export async function cancelOrder(orderNo: string, phone: string, reason: string): Promise<OrderCancelResponse> {
-  const queryString = buildQueryString({ phone });
-  return apiFetch<OrderCancelResponse>(`/orders/${orderNo}/cancel-requests${queryString}`, {
+export async function loginUser(payload: UserLoginRequest): Promise<UserAuthResponse> {
+  return apiFetch<UserAuthResponse>("/auth/login", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function refreshUserToken(payload: UserRefreshRequest): Promise<UserAuthResponse> {
+  return apiFetch<UserAuthResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function logoutUser(payload: UserLogoutRequest): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/auth/logout", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getMyProfile(accessToken: string): Promise<UserMe> {
+  return apiFetch<UserMe>("/auth/me", {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function getMyAddresses(accessToken: string): Promise<UserAddress[]> {
+  return apiFetch<UserAddress[]>("/me/addresses", {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function createMyAddress(
+  accessToken: string,
+  payload: UserAddressCreateRequest,
+): Promise<UserAddress> {
+  return apiFetch<UserAddress>("/me/addresses", {
+    method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchMyAddress(
+  accessToken: string,
+  addressId: number,
+  payload: UserAddressPatchRequest,
+): Promise<UserAddress> {
+  return apiFetch<UserAddress>(`/me/addresses/${addressId}`, {
+    method: "PATCH",
+    headers: resolveUserAuthHeaders(accessToken),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteMyAddress(
+  accessToken: string,
+  addressId: number,
+): Promise<{ ok: boolean; address_id: number }> {
+  return apiFetch<{ ok: boolean; address_id: number }>(`/me/addresses/${addressId}`, {
+    method: "DELETE",
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function getMyOrders(accessToken: string): Promise<OrderResponse[]> {
+  return apiFetch<OrderResponse[]>("/me/orders", {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function getMyOrder(accessToken: string, orderNo: string): Promise<OrderResponse> {
+  return apiFetch<OrderResponse>(`/me/orders/${orderNo}`, {
+    headers: resolveUserAuthHeaders(accessToken),
+  });
+}
+
+export async function cancelMyOrder(
+  accessToken: string,
+  orderNo: string,
+  reason: string,
+): Promise<OrderCancelResponse> {
+  return apiFetch<OrderCancelResponse>(`/me/orders/${orderNo}/cancel-requests`, {
+    method: "POST",
+    headers: resolveUserAuthHeaders(accessToken),
     body: JSON.stringify({ reason }),
   });
 }

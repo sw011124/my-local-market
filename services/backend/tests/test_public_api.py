@@ -499,7 +499,7 @@ def test_order_status_transition_rules_and_logs() -> None:
     session_key = cart_resp.json()['session_key']
     add_resp = client.post(
         f'/api/v1/cart/items?session_key={session_key}',
-        json={'product_id': product_id, 'qty': 1},
+        json={'product_id': product_id, 'qty': 2},
     )
     assert add_resp.status_code == 200
 
@@ -690,3 +690,116 @@ def test_cancel_restriction_shortage_reapply_and_refund_limit() -> None:
     )
     assert over_refund_resp.status_code == 400
     assert over_refund_resp.json()['detail']['code'] == 'REFUND_LIMIT_EXCEEDED'
+
+
+def test_user_auth_refresh_logout_flow() -> None:
+    signup_resp = client.post(
+        '/api/v1/auth/signup',
+        json={
+            'phone': '010-7000-0001',
+            'name': '회원테스터1',
+            'password': 'password123',
+        },
+    )
+    assert signup_resp.status_code == 200
+    signup_payload = signup_resp.json()
+    assert signup_payload['token_type'] == 'bearer'
+    assert signup_payload['user']['phone'] == '01070000001'
+
+    access_token = signup_payload['access_token']
+    refresh_token = signup_payload['refresh_token']
+    auth_headers = {'Authorization': f'Bearer {access_token}'}
+
+    me_resp = client.get('/api/v1/auth/me', headers=auth_headers)
+    assert me_resp.status_code == 200
+    assert me_resp.json()['phone'] == '01070000001'
+
+    refresh_resp = client.post('/api/v1/auth/refresh', json={'refresh_token': refresh_token})
+    assert refresh_resp.status_code == 200
+    refresh_payload = refresh_resp.json()
+    assert refresh_payload['access_token'] != access_token
+    assert refresh_payload['refresh_token'] != refresh_token
+
+    logout_resp = client.post('/api/v1/auth/logout', json={'refresh_token': refresh_payload['refresh_token']})
+    assert logout_resp.status_code == 200
+    assert logout_resp.json()['ok'] is True
+
+    refresh_after_logout_resp = client.post(
+        '/api/v1/auth/refresh',
+        json={'refresh_token': refresh_payload['refresh_token']},
+    )
+    assert refresh_after_logout_resp.status_code == 401
+
+
+def test_member_address_and_order_flow() -> None:
+    cart_resp = client.get('/api/v1/cart')
+    assert cart_resp.status_code == 200
+    session_key = cart_resp.json()['session_key']
+
+    add_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': 1, 'qty': 3},
+    )
+    assert add_resp.status_code == 200
+
+    signup_resp = client.post(
+        '/api/v1/auth/signup',
+        json={
+            'phone': '01070000002',
+            'name': '회원테스터2',
+            'password': 'password123',
+            'session_key': session_key,
+        },
+    )
+    assert signup_resp.status_code == 200
+    access_token = signup_resp.json()['access_token']
+    user_id = signup_resp.json()['user']['id']
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    create_addr_resp = client.post(
+        '/api/v1/me/addresses',
+        headers=headers,
+        json={
+            'label': '집',
+            'recipient_name': '회원테스터2',
+            'phone': '01070000002',
+            'address_line1': '경기도 시흥시 목감동 100',
+            'dong_code': '1535011000',
+            'is_default': True,
+        },
+    )
+    assert create_addr_resp.status_code == 200
+    created_address = create_addr_resp.json()
+    assert created_address['is_default'] is True
+
+    list_addr_resp = client.get('/api/v1/me/addresses', headers=headers)
+    assert list_addr_resp.status_code == 200
+    assert len(list_addr_resp.json()) >= 1
+
+    order_resp = client.post(
+        '/api/v1/orders',
+        headers=headers,
+        json={
+            'session_key': session_key,
+            'customer_name': '회원테스터2',
+            'customer_phone': '01070000002',
+            'address_line1': '경기도 시흥시 목감동 100',
+            'dong_code': '1535011000',
+            'allow_substitution': False,
+        },
+    )
+    assert order_resp.status_code == 200
+    order_payload = order_resp.json()
+    assert order_payload['order_source'] == 'MEMBER'
+    assert order_payload['user_id'] == user_id
+
+    my_orders_resp = client.get('/api/v1/me/orders', headers=headers)
+    assert my_orders_resp.status_code == 200
+    assert any(row['id'] == order_payload['id'] for row in my_orders_resp.json())
+
+    lookup_resp = client.get(
+        f"/api/v1/orders/lookup?order_no={order_payload['order_no']}",
+        headers=headers,
+    )
+    assert lookup_resp.status_code == 200
+    assert lookup_resp.json()['order_no'] == order_payload['order_no']

@@ -132,6 +132,92 @@ class SavedAddressPatchInput(BaseModel):
     is_default: bool | None = None
 
 
+class UserSignupInput(BaseModel):
+    phone: str = Field(min_length=8, max_length=20)
+    name: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=8, max_length=72)
+    session_key: str | None = None
+
+
+class UserLoginInput(BaseModel):
+    phone: str = Field(min_length=8, max_length=20)
+    password: str = Field(min_length=8, max_length=72)
+    session_key: str | None = None
+
+
+class UserRefreshInput(BaseModel):
+    refresh_token: str
+
+
+class UserLogoutInput(BaseModel):
+    refresh_token: str
+
+
+class UserMeOut(BaseModel):
+    id: int
+    phone: str
+    name: str
+    is_active: bool
+    created_at: datetime
+
+
+class UserAuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = 'bearer'
+    expires_in: int
+    user: UserMeOut
+
+
+class UserAddressOut(BaseModel):
+    id: int
+    user_id: int
+    label: str | None
+    recipient_name: str | None
+    phone: str | None
+    address_line1: str
+    address_line2: str | None
+    building: str | None
+    unit_no: str | None
+    dong_code: str | None
+    apartment_name: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
+    is_default: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserAddressCreateInput(BaseModel):
+    label: str | None = None
+    recipient_name: str | None = None
+    phone: str | None = None
+    address_line1: str
+    address_line2: str | None = None
+    building: str | None = None
+    unit_no: str | None = None
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    is_default: bool = False
+
+
+class UserAddressPatchInput(BaseModel):
+    label: str | None = None
+    recipient_name: str | None = None
+    phone: str | None = None
+    address_line1: str | None = None
+    address_line2: str | None = None
+    building: str | None = None
+    unit_no: str | None = None
+    dong_code: str | None = None
+    apartment_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    is_default: bool | None = None
+
+
 class CheckoutValidateResponse(BaseModel):
     valid: bool
     errors: list[str]
@@ -179,6 +265,8 @@ class OrderOut(BaseModel):
     id: int
     order_no: str
     status: OrderStatus
+    user_id: int | None = None
+    order_source: str
     customer_name: str
     customer_phone: str
     subtotal_estimated: Decimal

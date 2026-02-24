@@ -106,12 +106,22 @@ def get_or_create_policy(db: Session) -> StorePolicy:
     return policy
 
 
-def get_or_create_cart(db: Session, session_key: str) -> Cart:
+def get_or_create_cart(db: Session, session_key: str, user_id: int | None = None) -> Cart:
     cart = db.scalar(select(Cart).where(Cart.session_key == session_key))
     if cart:
+        if user_id is not None:
+            if cart.user_id is None:
+                cart.user_id = user_id
+                db.flush()
+            elif cart.user_id != user_id:
+                raise DomainError('CART_OWNERSHIP_MISMATCH', '다른 사용자의 장바구니입니다.')
         return cart
 
-    cart = Cart(session_key=session_key, expires_at=datetime.now(timezone.utc) + timedelta(days=7))
+    cart = Cart(
+        session_key=session_key,
+        user_id=user_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
     db.add(cart)
     db.flush()
     return cart
@@ -334,12 +344,16 @@ def create_order(
     requested_slot_start: datetime | None,
     zone: DeliveryZone | None,
     quote: ValidationResult,
+    user_id: int | None = None,
+    order_source: str = 'GUEST',
 ) -> Order:
     if not quote.valid:
         raise DomainError('INVALID_REQUEST', '주문 생성 전 검증에 실패했습니다.')
 
     order = Order(
         order_no=generate_order_no(),
+        user_id=user_id,
+        order_source=order_source,
         customer_name=customer_name,
         customer_phone=customer_phone,
         address_line1=address_line1,

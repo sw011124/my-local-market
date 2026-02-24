@@ -180,6 +180,8 @@ export type OrderResponse = {
   id: number;
   order_no: string;
   status: string;
+  user_id: number | null;
+  order_source: string;
   customer_name: string;
   customer_phone: string;
   subtotal_estimated: string;
@@ -190,6 +192,92 @@ export type OrderResponse = {
   ordered_at: string;
   requested_slot_start: string | null;
   items: OrderItem[];
+};
+
+export type UserMe = {
+  id: number;
+  phone: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type UserAuthResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+  user: UserMe;
+};
+
+export type UserSignupRequest = {
+  phone: string;
+  name: string;
+  password: string;
+  session_key?: string;
+};
+
+export type UserLoginRequest = {
+  phone: string;
+  password: string;
+  session_key?: string;
+};
+
+export type UserRefreshRequest = {
+  refresh_token: string;
+};
+
+export type UserLogoutRequest = {
+  refresh_token: string;
+};
+
+export type UserAddress = {
+  id: number;
+  user_id: number;
+  label: string | null;
+  recipient_name: string | null;
+  phone: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  building: string | null;
+  unit_no: string | null;
+  dong_code: string | null;
+  apartment_name: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserAddressCreateRequest = {
+  label?: string | null;
+  recipient_name?: string | null;
+  phone?: string | null;
+  address_line1: string;
+  address_line2?: string | null;
+  building?: string | null;
+  unit_no?: string | null;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  latitude?: number;
+  longitude?: number;
+  is_default?: boolean;
+};
+
+export type UserAddressPatchRequest = {
+  label?: string | null;
+  recipient_name?: string | null;
+  phone?: string | null;
+  address_line1?: string;
+  address_line2?: string | null;
+  building?: string | null;
+  unit_no?: string | null;
+  dong_code?: string | null;
+  apartment_name?: string | null;
+  latitude?: number;
+  longitude?: number;
+  is_default?: boolean;
 };
 
 export type OrderCancelResponse = {

@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     cors_origins: str = '*'
     same_day_cutoff_hour: int = 19
     time_zone: str = 'Asia/Seoul'
+    auth_secret_key: str = 'change-me-in-production'
+    auth_access_token_minutes: int = 60
+    auth_refresh_token_days: int = 14
 
 
 @lru_cache(maxsize=1)
