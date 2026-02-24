@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PackageCheck } from "lucide-react";
 
 function formatPrice(value: number): string {
   return `${new Intl.NumberFormat("ko-KR").format(value)}원`;
@@ -36,16 +37,42 @@ export default function OrderCompletePreviewPage() {
   return (
     <main className="min-h-screen bg-[#f6f6f7] px-4 py-8 text-black">
       <section className="mx-auto max-w-5xl space-y-4">
-        <article className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-          <p className="text-sm font-black text-emerald-700">
-            주문이 성공적으로 접수되었습니다.
-          </p>
-          <p className="mt-1 text-sm font-semibold text-emerald-700">
-            진로마트를 이용해 주셔서 감사합니다. 빠르게 준비해서 배송해드릴게요.
-          </p>
+        <article className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mx-auto max-w-md text-center">
+            <div className="mx-auto mb-5 inline-flex h-40 w-40 items-center justify-center rounded-full bg-gradient-to-b from-red-100 to-red-50 text-red-600 shadow-inner">
+              <PackageCheck size={84} strokeWidth={1.8} />
+            </div>
+            <p className="text-4xl font-black tracking-tight text-gray-900">
+              주문완료!
+            </p>
+            <p className="mt-3 text-xl font-semibold text-gray-700">
+              예쁘게 포장해서 보내드릴게요!
+            </p>
+            <p className="text-xl font-semibold text-gray-700">
+              조금만 기다려요 :)
+            </p>
+
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <a
+                href="#order-receipt"
+                className="inline-flex h-12 items-center justify-center rounded-full bg-gray-100 px-6 text-base font-extrabold text-gray-800 transition hover:bg-gray-200"
+              >
+                주문 상세보기
+              </a>
+              <Link
+                href="/"
+                className="inline-flex h-12 items-center justify-center rounded-full bg-gray-100 px-6 text-base font-extrabold text-gray-800 transition hover:bg-gray-200"
+              >
+                쇼핑 계속하기
+              </Link>
+            </div>
+          </div>
         </article>
 
-        <article className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
+        <article
+          id="order-receipt"
+          className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm"
+        >
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-2xl font-black">주문 영수증 (미리보기)</h1>
             <Link href="/" className="text-sm font-bold text-red-600">
@@ -126,4 +153,3 @@ export default function OrderCompletePreviewPage() {
     </main>
   );
 }
-
