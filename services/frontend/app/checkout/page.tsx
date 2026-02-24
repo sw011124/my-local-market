@@ -7,7 +7,8 @@ import {
   AlertCircle,
   ArrowLeft,
   ChevronDown,
-  ChevronUp,
+  CircleCheck,
+  CircleHelp,
   Home,
   Info,
   RefreshCw,
@@ -17,6 +18,8 @@ import { trackEvent } from "@/lib/analytics";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { emitCartSummaryUpdated } from "@/lib/cart-events";
 import {
+  type DeliveryMemoType,
+  DELIVERY_MEMO_OPTIONS,
   getDefaultDeliveryMemoNote,
   loadCheckoutDeliveryProfile,
   saveCheckoutDeliveryProfile,
@@ -87,7 +90,7 @@ type CheckoutForm = {
   longitude: string;
   requestedSlot: string;
   allowSubstitution: boolean;
-  deliveryMemoType: "door" | "guard" | "handoff" | "call" | "custom";
+  deliveryMemoType: DeliveryMemoType;
   deliveryRequestNote: string;
 };
 
@@ -205,6 +208,17 @@ function parseNumber(value: string): number | undefined {
 
 function formatPrice(value: string | number): string {
   return formatKrw(toKrwNumber(value));
+}
+
+function formatPhoneDisplay(phone: string): string {
+  const digits = phone.replace(/[^0-9]/g, "");
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+  }
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+  return phone || "연락처 미입력";
 }
 
 function normalizeErrorCodes(codes: string[]): string[] {
@@ -352,7 +366,6 @@ export default function CheckoutPage() {
   >(null);
   const [termsError, setTermsError] = useState<string | null>(null);
   const [toast, setToast] = useState<CheckoutToast | null>(null);
-  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
   const [slowNetworkHint, setSlowNetworkHint] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -367,12 +380,20 @@ export default function CheckoutPage() {
     () => toKrwNumber(quote?.subtotal ?? cart?.subtotal),
     [quote?.subtotal, cart?.subtotal],
   );
+  const deliveryFee = 0;
+  const finalPaymentAmount = useMemo(
+    () => toKrwNumber(quote?.total_estimated ?? subtotal),
+    [quote?.total_estimated, subtotal],
+  );
+  const discountAmount = useMemo(
+    () => Math.max(0, subtotal - finalPaymentAmount),
+    [finalPaymentAmount, subtotal],
+  );
   const deliveryState = useMemo(
     () => getDeliveryThresholdState(subtotal),
     [subtotal],
   );
   const deliveryEligible = deliveryState.eligible;
-  const finalPaymentAmount = subtotal;
   const primaryItemLabel = useMemo(
     () => getPrimaryItemLabel(cartItems),
     [cartItems],
@@ -428,13 +449,38 @@ export default function CheckoutPage() {
   );
 
   const canSubmitButton = !loading && !submitting && hasItems;
+  const isCheckoutReady = useMemo(
+    () =>
+      hasDeliveryAddress &&
+      Boolean(form.customerName.trim()) &&
+      Boolean(form.customerPhone.trim()) &&
+      !hasOutOfDeliveryZoneError &&
+      !hasStoreClosedError &&
+      !hasStockBlockingError &&
+      deliveryEligible &&
+      Boolean(selectedPaymentMethod) &&
+      allRequiredTermsChecked &&
+      quote?.valid === true,
+    [
+      allRequiredTermsChecked,
+      deliveryEligible,
+      form.customerName,
+      form.customerPhone,
+      hasDeliveryAddress,
+      hasOutOfDeliveryZoneError,
+      hasStockBlockingError,
+      hasStoreClosedError,
+      quote?.valid,
+      selectedPaymentMethod,
+    ],
+  );
 
   const ctaSupportMessage = useMemo(() => {
     if (!hasDeliveryAddress) {
       return "배송지를 등록하면 결제를 진행할 수 있습니다.";
     }
     if (!form.customerName.trim() || !form.customerPhone.trim()) {
-      return "배송지 정보에서 수령인 이름과 연락처를 등록해 주세요.";
+      return "배송지 정보에서 수령인 이름/연락처를 등록해 주세요.";
     }
     if (!deliveryEligible) {
       return `3만원까지 ${formatKrw(deliveryState.remaining)} 더 담아주세요.`;
@@ -648,18 +694,16 @@ export default function CheckoutPage() {
     router.push("/checkout/address/new");
   }
 
-  function reloadCheckout(): void {
-    setReloadToken((prev) => prev + 1);
+  function handleDeliveryMemoTypeChange(nextMemoType: DeliveryMemoType): void {
+    setForm((prev) => ({
+      ...prev,
+      deliveryMemoType: nextMemoType,
+      deliveryRequestNote: getDefaultDeliveryMemoNote(nextMemoType),
+    }));
   }
 
-  function handleToggleItemsExpanded(): void {
-    setIsItemsExpanded((prev) => {
-      const next = !prev;
-      if (next) {
-        trackEvent("order_items_expand", { item_count: itemCount });
-      }
-      return next;
-    });
+  function reloadCheckout(): void {
+    setReloadToken((prev) => prev + 1);
   }
 
   function handlePaymentMethodSelect(method: PaymentMethodOption): void {
@@ -756,7 +800,7 @@ export default function CheckoutPage() {
 
     if (reason === "no_address") {
       scrollToSection(addressSectionRef);
-      pushToast("error", "배송지와 수령인 정보를 먼저 입력해 주세요.");
+      pushToast("error", "배송지 정보에서 주소와 수령인 정보를 먼저 등록해 주세요.");
       return;
     }
 
@@ -884,7 +928,9 @@ export default function CheckoutPage() {
         payment_method: selectedPaymentMethod,
         amount: toKrwNumber(order.total_estimated),
       });
-      router.push(`/orders/${order.order_no}?phone=${form.customerPhone.trim()}`);
+      router.push(
+        `/orders/${order.order_no}?phone=${form.customerPhone.trim()}&placed=1`,
+      );
     } catch (error) {
       if (error instanceof ApiError) {
         let codes = extractCheckoutErrorCodes(error);
@@ -948,13 +994,12 @@ export default function CheckoutPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white px-4 pb-[calc(138px+env(safe-area-inset-bottom))] pt-2 text-black">
-      <section className="mx-auto max-w-7xl">
-        <header className="mb-3 flex items-center justify-between border-b border-gray-200 py-2">
+    <main className="min-h-screen bg-white px-4 pb-[calc(190px+env(safe-area-inset-bottom))] pt-2 text-black">
+      <header className="mx-auto mb-1 flex max-w-7xl items-center justify-between border-b border-gray-200 py-2">
           <button
             type="button"
             onClick={handleGoBack}
-            className="inline-flex h-11 w-11 items-center justify-center text-gray-700 transition hover:text-red-600"
+            className="inline-flex h-10 w-10 items-center justify-center text-gray-700 transition hover:text-red-600"
             aria-label="뒤로가기"
           >
             <ArrowLeft size={18} />
@@ -965,19 +1010,21 @@ export default function CheckoutPage() {
           <div className="flex items-center gap-1">
             <Link
               href="/cart"
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
+              className="inline-flex h-10 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
             >
               장바구니
             </Link>
             <Link
               href="/"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gray-300 text-gray-700 transition hover:border-red-300 hover:text-red-600"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 text-gray-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
               aria-label="홈"
             >
               <Home size={18} />
             </Link>
           </div>
-        </header>
+      </header>
+
+      <section className="mx-auto max-w-7xl">
 
         {toast ? (
           <div
@@ -1030,70 +1077,92 @@ export default function CheckoutPage() {
         ) : null}
 
         {!loading && hasItems ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
             <form
               id="checkout-form"
               onSubmit={(event) => void handleSubmit(event)}
-              className="space-y-3"
+              className="space-y-5"
             >
               <section
                 ref={addressSectionRef}
                 aria-labelledby="checkout-address-title"
-                className="rounded-2xl border border-gray-200 bg-white p-4"
+                className="pt-4"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h2
-                      id="checkout-address-title"
-                      className="text-base font-bold text-gray-900"
-                    >
-                      배송지
-                    </h2>
-                    <p className="mt-0.5 text-xs text-gray-600">
-                      주소 선택은 변경에서, 신규 주소는 추가 버튼에서 등록합니다.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => goToAddressSelector("change")}
-                    className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
-                  >
-                    변경
-                  </button>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-xl border border-gray-200 px-3 py-2">
-                    <p className="text-[11px] font-semibold text-gray-500">수령인</p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {form.customerName || "-"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-gray-200 px-3 py-2">
-                    <p className="text-[11px] font-semibold text-gray-500">연락처</p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {form.customerPhone || "-"}
-                    </p>
-                  </div>
-                </div>
+                <h2
+                  id="checkout-address-title"
+                  className="ml-[5px] text-lg font-bold text-gray-900"
+                >
+                  배송지
+                </h2>
 
                 {hasDeliveryAddress ? (
-                  <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3">
-                    <p className="text-[11px] font-semibold text-gray-500">
-                      기본 배송지
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900">
-                      {form.addressLine1}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-600">
-                      {form.addressLine2.trim() || "상세주소 없음"}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-600">
-                      배송 메모: {form.deliveryRequestNote || "요청사항 없음"}
-                    </p>
+                  <div className="mt-2 rounded-2xl border border-gray-200 bg-white px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-base font-bold leading-5 text-gray-900">
+                        {form.customerName || "수령인 미입력"}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => goToAddressSelector("change")}
+                        className="inline-flex h-[30px] items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+                      >
+                        변경
+                      </button>
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700">
+                      <span className="font-medium">
+                        {formatPhoneDisplay(form.customerPhone)}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                        <CircleCheck size={13} className="text-gray-400" />
+                        안심번호 사용
+                        <CircleHelp size={12} className="text-gray-400" />
+                      </span>
+                    </div>
+
+                    <div className="mt-3 border-t border-gray-200" />
+
+                    <div className="mt-3 space-y-1">
+                      <p className="text-sm font-semibold leading-5 text-gray-900">
+                        {form.addressLine1}
+                      </p>
+                      <p className="text-sm font-semibold leading-5 text-gray-900">
+                        {form.addressLine2.trim() || "상세주소 없음"}
+                      </p>
+                    </div>
+
+                    <div className="relative mt-3">
+                      <select
+                        value={form.deliveryMemoType}
+                        onChange={(event) =>
+                          handleDeliveryMemoTypeChange(
+                            event.target.value as DeliveryMemoType,
+                          )
+                        }
+                        className="h-11 w-full appearance-none rounded-lg border border-gray-300 bg-white px-3 pr-9 text-sm text-gray-700 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                      >
+                        {DELIVERY_MEMO_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.id === "custom"
+                              ? "배송메모를 선택해주세요"
+                              : option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={16}
+                        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                      />
+                    </div>
+
+                    <div className="mt-3 inline-flex items-center gap-1 text-sm text-gray-700">
+                      <CircleCheck size={14} className="text-gray-400" />
+                      다음에도 사용할게요
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
+                  <div className="mt-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
                     <p className="text-sm font-semibold text-gray-700">
                       배송지가 설정되지 않았습니다.
                     </p>
@@ -1111,7 +1180,7 @@ export default function CheckoutPage() {
                 )}
 
                 {hasOutOfDeliveryZoneError ? (
-                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3">
+                  <div className="mt-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3">
                     <p className="text-sm font-semibold text-red-700">
                       배달 불가 지역입니다.
                     </p>
@@ -1143,7 +1212,7 @@ export default function CheckoutPage() {
                 ) : null}
 
                 {hasStoreClosedError ? (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                  <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                     <p className="text-sm font-semibold text-amber-700">
                       영업 종료 또는 배달 마감 상태입니다.
                     </p>
@@ -1156,83 +1225,58 @@ export default function CheckoutPage() {
 
               <section
                 aria-labelledby="checkout-items-title"
-                className="rounded-2xl border border-gray-200 bg-white p-4"
+                className="pt-4"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2
-                      id="checkout-items-title"
-                      className="text-base font-bold text-gray-900"
-                    >
-                      주문 상품
-                    </h2>
-                    <p className="mt-0.5 text-xs text-gray-600">
-                      총 {itemCount}개 상품 · {primaryItemLabel}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleToggleItemsExpanded}
-                    className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:border-red-300 hover:text-red-600"
-                    aria-expanded={isItemsExpanded}
-                    aria-controls="checkout-order-items"
+                <div>
+                  <h2
+                    id="checkout-items-title"
+                    className="ml-[5px] text-lg font-bold text-gray-900"
                   >
-                    상세보기
-                    {isItemsExpanded ? (
-                      <ChevronUp className="ml-1.5" size={16} />
-                    ) : (
-                      <ChevronDown className="ml-1.5" size={16} />
-                    )}
-                  </button>
+                    주문 상품
+                  </h2>
+                  <p className="ml-[5px] mt-0.5 text-xs text-gray-600">
+                    총 {itemCount}개 상품
+                  </p>
                 </div>
 
-                {isItemsExpanded ? (
-                  <div id="checkout-order-items" className="mt-3 space-y-2">
-                    {cartItems.map((item) => {
-                      const stockBlocked =
-                        item.stock_qty <= 0 || item.qty > item.stock_qty;
+                <div id="checkout-order-items" className="mt-3 space-y-3">
+                  {cartItems.map((item) => {
+                    const stockBlocked =
+                      item.stock_qty <= 0 || item.qty > item.stock_qty;
 
-                      return (
-                        <article
-                          key={item.id}
-                          className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3"
-                        >
-                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-lg font-bold text-gray-500">
-                            {item.product_name.slice(0, 1)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-gray-900">
-                              {item.product_name}
+                    return (
+                      <article
+                        key={item.id}
+                        className="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3"
+                      >
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-lg font-bold text-gray-500">
+                          {item.product_name.slice(0, 1)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-gray-900">
+                            {item.product_name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-gray-500">
+                            옵션: 기본 · 수량 {item.qty}개
+                          </p>
+                          <div className="mt-1 flex items-center justify-between">
+                            <p className="text-sm font-bold text-gray-900">
+                              {formatPrice(item.line_total)}
                             </p>
-                            <p className="mt-0.5 text-xs text-gray-500">
-                              옵션: 기본 · 수량 {item.qty}개
-                            </p>
-                            <div className="mt-1 flex items-center justify-between">
-                              <p className="text-sm font-bold text-gray-900">
-                                {formatPrice(item.line_total)}
-                              </p>
-                              {stockBlocked ? (
-                                <span className="text-xs font-semibold text-red-600">
-                                  재고 부족
-                                </span>
-                              ) : (
-                                <span className="text-xs font-semibold text-emerald-600">
-                                  주문 가능
-                                </span>
-                              )}
-                            </div>
+                            {stockBlocked ? (
+                              <span className="text-xs font-semibold text-red-600">
+                                재고 부족
+                              </span>
+                            ) : (
+                              <span className="text-xs font-semibold text-emerald-600">
+                                주문 가능
+                              </span>
+                            )}
                           </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                ) : null}
-
-                <div className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-2">
-                  <p className="text-xs font-semibold text-gray-700">
-                    품절 정책: 품절/재고 부족 상품이 있으면 결제를 차단하고 장바구니
-                    수정 후 다시 결제해야 합니다.
-                  </p>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
 
                 {hasStockBlockingError ? (
@@ -1242,20 +1286,20 @@ export default function CheckoutPage() {
                 ) : null}
               </section>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-4">
-                <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 text-gray-500" size={16} />
-                  <div className="min-w-0">
-                    <h2 className="text-base font-bold text-gray-900">
+              <section className="pt-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="ml-[5px] text-lg font-bold text-gray-900">
                       할인/포인트
                     </h2>
-                    <p className="mt-0.5 text-xs text-gray-600">
-                      포인트/쿠폰은 준비중입니다. 현재는 주문 안정화를 위해 일반 결제만
-                      제공하고 있습니다.
-                    </p>
+                    <Info className="text-gray-500" size={15} />
                   </div>
+                  <p className="ml-[5px] mt-0.5 text-xs text-gray-600">
+                    포인트/쿠폰은 준비중입니다. 현재는 주문 안정화를 위해 일반 결제만
+                    제공하고 있습니다.
+                  </p>
                 </div>
-                <div className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
+                <div className="mt-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
                   <p className="text-sm font-semibold text-gray-600">
                     포인트/쿠폰 기능 준비중
                   </p>
@@ -1268,88 +1312,91 @@ export default function CheckoutPage() {
               <section
                 ref={paymentSectionRef}
                 aria-labelledby="checkout-payment-title"
-                className={`rounded-2xl border bg-white p-4 ${
-                  paymentSelectionError
-                    ? "border-red-300"
-                    : "border-gray-200"
-                }`}
+                className="pt-4"
               >
                 <h2
                   id="checkout-payment-title"
-                  className="text-base font-bold text-gray-900"
+                  className="ml-[5px] text-lg font-bold text-gray-900"
                 >
-                  결제수단
+                  결제 수단
                 </h2>
-                <p className="mt-0.5 text-xs text-gray-600">
-                  결제수단 1개를 선택해 주세요.
+                <p className="ml-[5px] mt-0.5 text-xs text-gray-600">
+                  결제 수단 1개를 선택해 주세요.
                 </p>
 
-                <div className="mt-3 space-y-2">
-                  {PAYMENT_METHOD_OPTIONS.map((method) => (
-                    <label
-                      key={method.id}
-                      className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
-                        selectedPaymentMethod === method.id
-                          ? "border-red-400 bg-red-50"
-                          : "border-gray-200 bg-white"
-                      } ${
-                        method.enabled
-                          ? "hover:border-red-300"
-                          : "cursor-not-allowed opacity-65"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="payment-method"
-                        value={method.id}
-                        checked={selectedPaymentMethod === method.id}
-                        disabled={!method.enabled}
-                        onChange={() => handlePaymentMethodSelect(method)}
-                        className="mt-1 h-4 w-4 accent-red-600"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {method.label}
+                <div
+                  className={`mt-2 rounded-2xl border bg-white px-3 py-3 ${
+                    paymentSelectionError ? "border-red-300" : "border-gray-200"
+                  }`}
+                >
+                  <div className="space-y-3">
+                    {PAYMENT_METHOD_OPTIONS.map((method) => (
+                      <label
+                        key={method.id}
+                        className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border px-3 py-3 transition ${
+                          selectedPaymentMethod === method.id
+                            ? "border-red-400 bg-red-50"
+                            : "border-gray-200 bg-white"
+                        } ${
+                          method.enabled
+                            ? "hover:border-red-300"
+                            : "cursor-not-allowed opacity-65"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="payment-method"
+                          value={method.id}
+                          checked={selectedPaymentMethod === method.id}
+                          disabled={!method.enabled}
+                          onChange={() => handlePaymentMethodSelect(method)}
+                          className="mt-1 h-4 w-4 accent-red-600"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {method.label}
+                            </p>
+                            {method.badge ? (
+                              <span className="bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700">
+                                {method.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-0.5 text-xs text-gray-600">
+                            {method.description}
                           </p>
-                          {method.badge ? (
-                            <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-700">
-                              {method.badge}
-                            </span>
+                          {selectedPaymentMethod === method.id ? (
+                            <p className="mt-1 text-[11px] text-gray-500">
+                              {method.caution}
+                            </p>
                           ) : null}
                         </div>
-                        <p className="mt-0.5 text-xs text-gray-600">
-                          {method.description}
-                        </p>
-                        {selectedPaymentMethod === method.id ? (
-                          <p className="mt-1 text-[11px] text-gray-500">
-                            {method.caution}
-                          </p>
-                        ) : null}
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                      </label>
+                    ))}
+                  </div>
 
-                {paymentSelectionError ? (
-                  <p className="mt-2 text-xs font-semibold text-red-600">
-                    {paymentSelectionError}
-                  </p>
-                ) : null}
+                  {paymentSelectionError ? (
+                    <p className="mt-2 text-xs font-semibold text-red-600">
+                      {paymentSelectionError}
+                    </p>
+                  ) : null}
+                </div>
               </section>
 
               <section
                 aria-labelledby="checkout-amount-title"
-                className="rounded-2xl border border-gray-200 bg-white p-4"
+                className="pt-4"
               >
+                <div className="rounded-2xl border border-gray-200 bg-white px-3 py-3">
                 <h2
                   id="checkout-amount-title"
-                  className="text-base font-bold text-gray-900"
+                  className="ml-[5px] text-lg font-bold text-gray-900"
                 >
                   결제 금액
                 </h2>
 
-                <dl className="mt-3 space-y-2 text-sm">
+                <dl className="mt-3 space-y-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-gray-600">상품금액</dt>
                     <dd className="text-right font-semibold text-gray-900">
@@ -1358,11 +1405,19 @@ export default function CheckoutPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-gray-600">배송비</dt>
-                    <dd className="text-right font-semibold text-gray-900">0원</dd>
+                    <dd className="text-right font-semibold text-gray-900">
+                      {formatKrw(deliveryFee)}
+                    </dd>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <dt className="text-gray-600">할인</dt>
-                    <dd className="text-right font-semibold text-gray-900">0원</dd>
+                    <dd
+                      className={`text-right font-semibold ${
+                        discountAmount > 0 ? "text-red-600" : "text-gray-900"
+                      }`}
+                    >
+                      {discountAmount > 0 ? `-${formatKrw(discountAmount)}` : "0원"}
+                    </dd>
                   </div>
                   <div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-2">
                     <dt className="text-base font-bold text-gray-900">
@@ -1395,23 +1450,27 @@ export default function CheckoutPage() {
                     </Link>
                   </div>
                 ) : null}
+                </div>
               </section>
 
               <section
                 ref={termsSectionRef}
                 aria-labelledby="checkout-terms-title"
-                className={`rounded-2xl border bg-white p-4 ${
-                  termsError ? "border-red-300" : "border-gray-200"
-                }`}
+                className="pt-4"
               >
+                <div
+                  className={`rounded-2xl border bg-white px-3 py-3 ${
+                    termsError ? "border-red-300" : "border-gray-200"
+                  }`}
+                >
                 <h2
                   id="checkout-terms-title"
-                  className="text-base font-bold text-gray-900"
+                  className="ml-[5px] text-lg font-bold text-gray-900"
                 >
                   약관/동의
                 </h2>
 
-                <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-900">
+                <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-900">
                   <input
                     type="checkbox"
                     checked={allTermsChecked}
@@ -1421,7 +1480,7 @@ export default function CheckoutPage() {
                   전체 동의
                 </label>
 
-                <div className="mt-2 space-y-2">
+                <div className="mt-3 space-y-3">
                   {REQUIRED_TERMS.map((term) => (
                     <div
                       key={term.id}
@@ -1476,12 +1535,13 @@ export default function CheckoutPage() {
                     {termsError}
                   </p>
                 ) : null}
+                </div>
               </section>
 
               {checkoutErrorMessages.length > 0 ? (
-                <section className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <section className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   <p className="font-semibold">주문 조건을 확인해 주세요.</p>
-                  <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
                     {checkoutErrorMessages.map((message) => (
                       <li key={message}>{message}</li>
                     ))}
@@ -1491,25 +1551,27 @@ export default function CheckoutPage() {
             </form>
 
             <aside className="hidden lg:block">
-              <div className="sticky top-24 space-y-3">
+              <div className="sticky top-24 space-y-4 pt-4">
                 <section className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-base font-bold text-gray-900">결제 요약</h3>
-                  <p className="mt-1 text-xs text-gray-600">
+                  <h3 className="ml-[5px] text-lg font-bold text-gray-900">결제 요약</h3>
+                  <p className="ml-[5px] mt-1 text-xs text-gray-600">
                     총 {itemCount}개 상품 · {primaryItemLabel}
                   </p>
 
-                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3 text-sm">
+                  <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-600">상품금액</span>
                       <strong>{formatKrw(subtotal)}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">배송비</span>
-                      <strong>0원</strong>
+                      <strong>{formatKrw(deliveryFee)}</strong>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600">할인</span>
-                      <strong>0원</strong>
+                      <strong className={discountAmount > 0 ? "text-red-600" : ""}>
+                        {discountAmount > 0 ? `-${formatKrw(discountAmount)}` : "0원"}
+                      </strong>
                     </div>
                     <div className="flex justify-between border-t border-gray-200 pt-2 text-base">
                       <span className="font-bold">최종 결제금액</span>
@@ -1530,8 +1592,8 @@ export default function CheckoutPage() {
                 </section>
 
                 <section className="rounded-2xl border border-gray-200 bg-white p-4">
-                  <h3 className="text-sm font-bold text-gray-900">진행 상태</h3>
-                  <p className="mt-1 text-xs text-gray-600">{ctaSupportMessage}</p>
+                  <h3 className="ml-[5px] text-lg font-bold text-gray-900">진행 상태</h3>
+                  <p className="ml-[5px] mt-1 text-xs text-gray-600">{ctaSupportMessage}</p>
                   {hasDeliveryBlockingError ? (
                     <p className="mt-2 text-xs font-semibold text-red-600">
                       배송 조건이 충족되지 않아 결제가 제한됩니다.
@@ -1546,25 +1608,34 @@ export default function CheckoutPage() {
 
       {hasItems ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-semibold text-gray-500">
-                배송비 0원 · 총 {itemCount}개
-              </p>
-              <p className="truncate text-sm font-semibold text-gray-900">
-                {ctaSupportMessage}
-              </p>
+          <div className="mx-auto max-w-7xl px-4 py-3">
+            <div className="mb-2 flex items-center justify-between px-1 py-1">
+              <p className="text-sm font-semibold text-gray-700">결제금액</p>
+              <div className="min-w-0 flex items-center justify-end gap-2">
+                {discountAmount > 0 ? (
+                  <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-600">
+                    {formatKrw(discountAmount)} 할인
+                  </span>
+                ) : null}
+                <p className="text-right text-lg font-black text-gray-900">
+                  {formatKrw(finalPaymentAmount)}
+                </p>
+              </div>
             </div>
+
             <button
               type="submit"
               form="checkout-form"
               disabled={!canSubmitButton}
-              className="inline-flex h-12 min-w-[152px] items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-extrabold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-300"
+              className="inline-flex h-14 w-full items-center justify-center rounded-xl bg-red-600 px-4 text-base font-extrabold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-gray-300"
             >
-              {submitting
-                ? "결제 진행 중..."
-                : `${formatKrw(finalPaymentAmount)} 결제하기`}
+              결제하기
             </button>
+            {!isCheckoutReady ? (
+              <p className="mt-2 truncate text-center text-xs font-medium text-gray-500">
+                {ctaSupportMessage}
+              </p>
+            ) : null}
           </div>
           {slowNetworkHint ? (
             <p className="pb-2 text-center text-xs font-semibold text-amber-700">
