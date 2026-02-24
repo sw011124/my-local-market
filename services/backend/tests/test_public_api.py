@@ -43,9 +43,14 @@ def test_cart_and_quote_flow() -> None:
 
     add_resp = client.post(
         f'/api/v1/cart/items?session_key={session_key}',
-        json={'product_id': 1, 'qty': 3},
+        json={'product_id': 1, 'qty': 5},
     )
     assert add_resp.status_code == 200
+    add_more_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': 4, 'qty': 1},
+    )
+    assert add_more_resp.status_code == 200
 
     quote_resp = client.post(
         '/api/v1/checkout/quote',
@@ -73,9 +78,14 @@ def test_admin_shortage_refund_and_content_crud() -> None:
     session_key = cart_resp.json()['session_key']
     add_resp = client.post(
         f'/api/v1/cart/items?session_key={session_key}',
-        json={'product_id': 1, 'qty': 3},
+        json={'product_id': 1, 'qty': 5},
     )
     assert add_resp.status_code == 200
+    add_more_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': 4, 'qty': 1},
+    )
+    assert add_more_resp.status_code == 200
 
     order_resp = client.post(
         '/api/v1/orders',
@@ -380,7 +390,7 @@ def test_admin_delivery_policy_zone_holiday_flow() -> None:
     assert valid_quote_resp.status_code == 200
     valid_quote_payload = valid_quote_resp.json()
     assert valid_quote_payload['valid'] is True
-    assert valid_quote_payload['delivery_fee'] == '2500.00'
+    assert valid_quote_payload['delivery_fee'] == '0'
 
     deactivate_zone_resp = client.delete(f'/api/v1/admin/delivery-zones/{zone_id}', headers=headers)
     assert deactivate_zone_resp.status_code == 200
@@ -499,7 +509,7 @@ def test_order_status_transition_rules_and_logs() -> None:
     session_key = cart_resp.json()['session_key']
     add_resp = client.post(
         f'/api/v1/cart/items?session_key={session_key}',
-        json={'product_id': product_id, 'qty': 2},
+        json={'product_id': product_id, 'qty': 3},
     )
     assert add_resp.status_code == 200
 
@@ -738,9 +748,14 @@ def test_member_address_and_order_flow() -> None:
 
     add_resp = client.post(
         f'/api/v1/cart/items?session_key={session_key}',
-        json={'product_id': 1, 'qty': 3},
+        json={'product_id': 1, 'qty': 5},
     )
     assert add_resp.status_code == 200
+    add_more_resp = client.post(
+        f'/api/v1/cart/items?session_key={session_key}',
+        json={'product_id': 4, 'qty': 1},
+    )
+    assert add_more_resp.status_code == 200
 
     signup_resp = client.post(
         '/api/v1/auth/signup',

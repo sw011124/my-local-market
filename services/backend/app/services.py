@@ -96,9 +96,9 @@ def get_or_create_policy(db: Session) -> StorePolicy:
         open_time=datetime.strptime('09:00', '%H:%M').time(),
         close_time=datetime.strptime('21:00', '%H:%M').time(),
         same_day_cutoff_time=datetime.strptime('19:00', '%H:%M').time(),
-        min_order_amount_default=Decimal('15000'),
-        base_delivery_fee_default=Decimal('3000'),
-        free_delivery_threshold_default=Decimal('40000'),
+        min_order_amount_default=Decimal('30000'),
+        base_delivery_fee_default=Decimal('0'),
+        free_delivery_threshold_default=Decimal('0'),
         allow_reservation_days=2,
     )
     db.add(policy)
@@ -300,12 +300,8 @@ def validate_checkout(
     if subtotal < min_order:
         errors.append('MIN_ORDER_NOT_MET')
 
-    base_delivery = to_decimal(zone.base_fee if zone and zone.base_fee is not None else policy.base_delivery_fee_default)
-    free_threshold = to_decimal(
-        zone.free_delivery_threshold if zone and zone.free_delivery_threshold is not None else policy.free_delivery_threshold_default
-    )
-
-    delivery_fee = Decimal('0') if subtotal >= free_threshold else base_delivery
+    free_threshold = Decimal('0')
+    delivery_fee = Decimal('0')
     total_estimated = subtotal + delivery_fee
 
     return ValidationResult(
